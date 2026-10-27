@@ -1,5 +1,6 @@
 #include "main.h"
 #include "HookFunction.h"
+#include "VirtualMemoryHelper.h"
 
 #pragma data_seg()
 VOID* pNtosKrnlBase = NULL;
@@ -39,6 +40,8 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 			pKeServiceDescriptorTable = (PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->KeServiceDescriptorTableRVA;
 			DirectoryTableBaseRVA = (PTR_TYPE)pInfo->DirectoryTableBaseRVA;
 			pMmCopyVirtualMemory = (PMmCopyVirtualMemory)((PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->MmCopyVirtualMemoryRVA);
+
+			__debugbreak();
 
 			Info = sizeof(KernelRvaInfo);
 		}
@@ -105,7 +108,29 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 			PsLookupProcessByProcessId((HANDLE)pInfo->processId, &pProcess);
 
 			if (pProcess == NULL)
-				return STATUS_UNSUCCESSFUL;
+			{
+				Status = STATUS_UNSUCCESSFUL;
+				break;
+			}
+
+			//触发写时复制
+
+			Status = TouchReadonlyCowPage(record.pOriginVirtAddr, pProcess);
+
+			if (!NT_SUCCESS(Status))
+				break;
+
+			//锁定页面
+
+			Status = LockVirtualMemory(pInfo->pOriginVirtAddr, pProcess);
+
+			if (!NT_SUCCESS(Status))
+				break;
+
+			Status = LockVirtualMemory(pInfo->pGotoVirtAddr, pProcess);
+
+			if (!NT_SUCCESS(Status))
+				break;
 
 			pGlobalManager->nptHookManager.AddProcessHook(record, pProcess);
 
@@ -129,7 +154,14 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 			PsLookupProcessByProcessId((HANDLE)pInfo->processId, &pProcess);
 
 			if (pProcess == NULL)
-				return STATUS_UNSUCCESSFUL;
+			{
+				Status = STATUS_UNSUCCESSFUL;
+				break;
+			}
+
+			UnlockVirtualMemory(pInfo->pOriginVirtAddr, pProcess);
+
+			UnlockVirtualMemory(pInfo->pGotoVirtAddr, pProcess);
 
 			pGlobalManager->nptHookManager.RemoveProcessHook(pInfo->pOriginVirtAddr, pGlobalManager->nptHookManager.GetProcessCr3(pProcess));
 

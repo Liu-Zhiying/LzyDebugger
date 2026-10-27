@@ -45,4 +45,6 @@ public:
 	virtual ~GlobalManager();
 };
 
+extern VOID* pKeServiceDescriptorTable;
+
 #endif

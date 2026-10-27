@@ -1,6 +1,8 @@
 #ifndef NTAPI_H
 #define NTAPI_H
 
+#include <ntddk.h>
+
 #pragma warning(disable : 4201)
 
 typedef struct _KAPC_STATE {
@@ -184,5 +186,12 @@ typedef NTSTATUS(NTAPI* PMmCopyVirtualMemory)(
 	_In_  SIZE_T          BufferSize,
 	_In_  KPROCESSOR_MODE PreviousMode,
 	_Out_ PSIZE_T         ReturnSize);
+
+typedef NTSTATUS(NTAPI* PNtProtectVirtualMemory)(
+	_In_ HANDLE ProcessHandle,        // 目标进程，NtCurrentProcess()
+	_Inout_ PVOID* BaseAddress,       // 区域基址，按页向下对齐
+	_Inout_ PSIZE_T RegionSize,       // 大小，会被向上取整到页边界
+	_In_ ULONG NewProtect,            // 新的保护属性
+	_Out_ PULONG OldProtect);         // 返回旧的保护属性
 
 #endif
