@@ -41,8 +41,6 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 			DirectoryTableBaseRVA = (PTR_TYPE)pInfo->DirectoryTableBaseRVA;
 			pMmCopyVirtualMemory = (PMmCopyVirtualMemory)((PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->MmCopyVirtualMemoryRVA);
 
-			__debugbreak();
-
 			Info = sizeof(KernelRvaInfo);
 		}
 		break;
