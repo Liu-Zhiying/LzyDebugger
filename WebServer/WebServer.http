@@ -1,0 +1,11 @@
+@SymbolCacher_HostAddress = http://localhost:5275
+
+GET {{SymbolCacher_HostAddress}}/todos/
+Accept: application/json
+
+###
+
+GET {{SymbolCacher_HostAddress}}/todos/1
+Accept: application/json
+
+###

@@ -1,0 +1,15 @@
+{
+  "profiles": {
+    "http": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "launchUrl": "get_pdb/ntkrnlmp.pdb/826F6E1CA5186FB21D457B84A88E0F631/ntkrnlmp.pdb",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5275"
+    }
+  },
+  "$schema": "http://json.schemastore.org/launchsettings.json"
+}
