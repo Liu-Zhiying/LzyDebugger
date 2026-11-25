@@ -62,6 +62,7 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 	case IOCTL_START_VM_AND_HOOK:
 	{
+		HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
 		HookFunctionManager::HookDebugFunctions(pGlobalManager, pKiDispatchException, pDbgkpPostFakeThreadMessages);
 
 		//启用进程HOOK
@@ -70,17 +71,12 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		//开始进行虚拟化
 		pGlobalManager->svmManager.EnterVirtualization();
 
-		
-		//HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
-
 		Info = 0;                                              // 纯写入，无返回长度
 		break;
 	}
 
 	case IOCTL_STOP_VM_AND_UNHOOK:
 	{
-		//HookFunctionManager::UnhookSSDT(pGlobalManager);
-
 		//禁用进程HOOK
 		pGlobalManager->nptHookManager.DisableProcessHook();
 
@@ -88,6 +84,7 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		pGlobalManager->svmManager.LeaveVirtualization();
 
 		HookFunctionManager::UnhookDebugFunction(pGlobalManager);
+		HookFunctionManager::UnhookSSDT(pGlobalManager);
 
 		Info = 0;
 		break;

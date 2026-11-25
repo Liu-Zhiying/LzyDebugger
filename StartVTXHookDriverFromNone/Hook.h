@@ -5,6 +5,7 @@
 #include "VTX.h"
 #include "PageTable.h"
 #include "CasLockers.h"
+#include "ntapi.h"
 #include <intrin.h>
 
 bool SetRegsThenVTXCallWrapper(PTR_TYPE* rax, PTR_TYPE* rbx, PTR_TYPE* rcx, PTR_TYPE* rdx);
@@ -593,8 +594,6 @@ inline void MsrHookManager<msrHookCount>::DisableMsrHook(UINT32 msrNum, bool wri
 	SetRegsThenVTXCall(&regs[0], &regs[1], &regs[2], &regs[3]);
 
 	cpuIdx = (UINT32)regs[1];
-
-	MsrOperationParameter optParam = {};
 
 	for (MsrHookParameter& param : parameters)
 	{

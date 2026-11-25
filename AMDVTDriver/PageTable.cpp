@@ -86,7 +86,6 @@ NTSTATUS AllocNewPageTable(EntryType* fatherEntry, PageTableRecords& records, PT
 		RtlZeroMemory(pSubTable, sizeof * pSubTable);
 		//…Ë÷√∏∏“≥±ÌœÓ
 		entrySetter(fatherEntry, GET_PFN_FROM_PHYADDR(pa), false, level);
-
 	} while (false);
 
 	return status;

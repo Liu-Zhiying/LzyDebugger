@@ -111,7 +111,7 @@ public:
 		record.pOriginVirtAddr = pOldNtCreateFile;
 		record.pGotoVirtAddr = NtCreateFileHandler;
 
-		pGlobalManager->eptHookManager.AddHook(record);
+		//pGlobalManager->eptHookManager.AddHook(record);
 
 		// IOCTL 派发时当前就是用户进程上下文
 		PHYSICAL_ADDRESS pa = MmGetPhysicalAddress((PVOID)0x7FFE0000);
@@ -132,7 +132,7 @@ public:
 		record.pOriginVirtAddr = pOldNtQuerySystemInformation;
 		record.pGotoVirtAddr = NtQuerySystemInformationHandler;
 
-		pGlobalManager->eptHookManager.AddHook(record);
+		//pGlobalManager->eptHookManager.AddHook(record);
 
 		index = GetSyscallIndex("NtSystemDebugControl");
 

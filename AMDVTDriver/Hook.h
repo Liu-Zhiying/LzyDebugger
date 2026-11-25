@@ -5,6 +5,7 @@
 #include "SVM.h"
 #include "PageTable.h"
 #include "CasLockers.h"
+#include "ntapi.h"
 #include <intrin.h>
 
 //辅助函数，用于跳转到VMM处理
