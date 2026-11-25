@@ -232,7 +232,219 @@ NtWriteVirtualMemoryHandler(
     }
 }
 
-#pragma unmanaged
+LONG debugEventsLock;
+std::vector<DEBUG_EVENT> debugEvents;
+
+#define LOCK_DEBUG_EVENTS() while (!InterlockedCompareExchange(&debugEventsLock, 1, 0)) continue;
+#define UNLOCK_DEBUG_EVENTS() InterlockedCompareExchange(&debugEventsLock, 0, 1);
+
+unsigned __stdcall AddNewDebugEvent(IN LPDEBUG_EVENT pDebugEvent)
+{
+    LOCK_DEBUG_EVENTS();
+    printf("aaa\n");
+    debugEvents.push_back(*pDebugEvent);
+    UNLOCK_DEBUG_EVENTS();
+    return 0;
+}
+
+typedef BOOL(WINAPI* PDebugBreakProcess)(
+    IN HANDLE Process);
+
+PDebugBreakProcess pOriginDebugBreakProcess = NULL;
+
+BOOL DLL WINAPI DebugBreakProcessHandler(
+    IN HANDLE Process)
+{
+    HANDLE hDevice = GetDriverHandle();
+    if (hDevice == INVALID_HANDLE_VALUE)
+    {
+        ShowDriverNotInitError("NtDebugActiveProcess");
+        CleanDriverHandle();
+        return STATUS_ACCESS_DENIED;
+    }
+
+    UINT64 processId = GetProcessId(Process);
+
+    if (!DeviceIoControl(hDevice, IOCTL_DEBUG_BREAK_PROCESS, &processId, sizeof processId, NULL, 0, NULL, NULL))
+        return FALSE;
+
+    return TRUE;
+}
+
+typedef NTSTATUS(NTAPI* PNtDebugActiveProcess)(
+    _In_ HANDLE ProcessHandle,
+    _In_ HANDLE DebugObjectHandle);
+
+PNtDebugActiveProcess pOriginNtDebugActiveProcess = NULL;
+
+NTSTATUS NTAPI NtDebugActiveProcessHandler(
+    _In_ HANDLE ProcessHandle,
+    _In_ HANDLE DebugObjectHandle)
+{
+    HANDLE hDevice = GetDriverHandle();
+    if (hDevice == INVALID_HANDLE_VALUE)
+    {
+        ShowDriverNotInitError("NtDebugActiveProcess");
+        CleanDriverHandle();
+        return STATUS_ACCESS_DENIED;
+    }
+
+    BindDebugProcess info = {};
+
+    info.DebuggeeProcess = GetProcessId(ProcessHandle);
+    info.DebuggerProcess = GetCurrentProcessId();
+    info.debugEventAddFunction = AddNewDebugEvent;
+
+    if (!DeviceIoControl(hDevice, IOCTL_DEBUG_ACTVIE_PROCESS, &info, sizeof info, NULL, 0, NULL, NULL))
+        return STATUS_ACCESS_DENIED;
+
+    DebugBreakProcessHandler(ProcessHandle);
+
+    return STATUS_SUCCESS;
+}
+
+typedef NTSTATUS (NTAPI *PNtRemoveProcessDebug)(
+    _In_ HANDLE ProcessHandle,
+    _In_ HANDLE DebugObjectHandle);
+
+PNtRemoveProcessDebug pOriginNtRemoveProcessDebug = NULL;
+
+NTSTATUS NTAPI NtRemoveProcessDebugHandler(
+    _In_ HANDLE ProcessHandle,
+    _In_ HANDLE DebugObjectHandle)
+{
+    HANDLE hDevice = GetDriverHandle();
+    if (hDevice == INVALID_HANDLE_VALUE)
+    {
+        ShowDriverNotInitError("NtDebugActiveProcess");
+        CleanDriverHandle();
+        return STATUS_ACCESS_DENIED;
+    }
+
+    BindDebugProcess info = {};
+
+    info.DebuggeeProcess = GetProcessId(ProcessHandle);
+    info.DebuggerProcess = GetCurrentProcessId();
+
+    if (!DeviceIoControl(hDevice, IOCTL_REMOVE_DEBUG_PROCESS, &info, sizeof info, NULL, 0, NULL, NULL))
+        return STATUS_ACCESS_DENIED;
+
+    return STATUS_SUCCESS;
+}
+
+typedef BOOL(APIENTRY* PWaitForDebugEvent)(
+    _Out_ LPDEBUG_EVENT lpDebugEvent,
+    _In_ DWORD dwMilliseconds);
+
+PWaitForDebugEvent pOriginWaitForDebugEvent = NULL;
+
+BOOL APIENTRY WaitForDebugEventHandler(
+    _Out_ LPDEBUG_EVENT lpDebugEvent,
+    _In_ DWORD dwMilliseconds)
+{
+    printf("bbb\n");
+
+    if (dwMilliseconds == INFINITE)
+    {
+        while (debugEvents.size() == 0) continue;
+        LOCK_DEBUG_EVENTS();
+        *lpDebugEvent = debugEvents.front();
+        debugEvents.erase(debugEvents.begin());
+        UNLOCK_DEBUG_EVENTS();
+
+        SetLastError(ERROR_SUCCESS);
+        return ERROR_SUCCESS;
+    }
+    else
+    {
+        LARGE_INTEGER beginTime = {};
+        LARGE_INTEGER frequency = {};
+        LARGE_INTEGER endTime = {};
+        LARGE_INTEGER msElapsed = {};
+
+        QueryPerformanceFrequency(&frequency);
+        QueryPerformanceCounter(&beginTime);
+
+        while (debugEvents.size() == 0 && msElapsed.QuadPart < dwMilliseconds)
+        {
+            QueryPerformanceCounter(&endTime);
+            msElapsed.QuadPart = (endTime.QuadPart - beginTime.QuadPart) * 1000 / frequency.QuadPart;
+        }
+        if (debugEvents.size() != 0)
+        {
+            LOCK_DEBUG_EVENTS();
+            *lpDebugEvent = debugEvents.front();
+            debugEvents.erase(debugEvents.begin());
+            UNLOCK_DEBUG_EVENTS();
+
+            SetLastError(ERROR_SUCCESS);
+            return ERROR_SUCCESS;
+        }
+        else
+        {
+            SetLastError(ERROR_TIMEOUT);
+            return ERROR_TIMEOUT;
+        }
+    }
+}
+
+typedef BOOL(APIENTRY* PWaitForDebugEventEx)(
+    _Out_ LPDEBUG_EVENT lpDebugEvent,
+    _In_ DWORD dwMilliseconds);
+
+PWaitForDebugEventEx pOriginWaitForDebugEventEx = NULL;
+
+BOOL APIENTRY WaitForDebugEventExHandler(
+    _Out_ LPDEBUG_EVENT lpDebugEvent,
+    _In_ DWORD dwMilliseconds)
+{
+    printf("bbb\n");
+
+    if (dwMilliseconds == INFINITE)
+    {
+        while (debugEvents.size() == 0) continue;
+        LOCK_DEBUG_EVENTS();
+        *lpDebugEvent = debugEvents.front();
+        debugEvents.erase(debugEvents.begin());
+        UNLOCK_DEBUG_EVENTS();
+
+        SetLastError(ERROR_SUCCESS);
+        return ERROR_SUCCESS;
+    }
+    else
+    {
+        LARGE_INTEGER beginTime = {};
+        LARGE_INTEGER frequency = {};
+        LARGE_INTEGER endTime = {};
+        LARGE_INTEGER msElapsed = {};
+
+        QueryPerformanceFrequency(&frequency);
+        QueryPerformanceCounter(&beginTime);
+
+        while (debugEvents.size() == 0 && msElapsed.QuadPart < dwMilliseconds)
+        {
+            QueryPerformanceCounter(&endTime);
+            msElapsed.QuadPart = (endTime.QuadPart - beginTime.QuadPart) * 1000 / frequency.QuadPart;
+
+            if (debugEvents.size() != 0)
+            {
+                LOCK_DEBUG_EVENTS();
+                *lpDebugEvent = debugEvents.front();
+                debugEvents.erase(debugEvents.begin());
+                UNLOCK_DEBUG_EVENTS();
+
+                SetLastError(ERROR_SUCCESS);
+                return ERROR_SUCCESS;
+            }
+            else
+            {
+                SetLastError(ERROR_TIMEOUT);
+                return ERROR_TIMEOUT;
+            }
+        }
+    }
+}
+
 BOOL __declspec(dllexport) WINAPI DllMain(
     HINSTANCE hinstDLL,
     DWORD     fdwReason,
@@ -260,6 +472,20 @@ BOOL __declspec(dllexport) WINAPI DllMain(
         DetourAttach(&(PVOID&)pOriginNtReadVirtualMemory, NtReadVirtualMemoryHandler);
         pOriginNtWriteVirtualMemory = (PNtWriteVirtualMemory)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtWriteVirtualMemory");
         DetourAttach(&(PVOID&)pOriginNtWriteVirtualMemory, NtWriteVirtualMemoryHandler);
+
+        pOriginNtDebugActiveProcess = (PNtDebugActiveProcess)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtDebugActiveProcess");
+        DetourAttach(&(PVOID&)pOriginNtDebugActiveProcess, NtDebugActiveProcessHandler);
+        pOriginNtRemoveProcessDebug = (PNtRemoveProcessDebug)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtRemoveProcessDebug");
+        DetourAttach(&(PVOID&)pOriginNtRemoveProcessDebug, NtRemoveProcessDebugHandler);
+
+        pOriginWaitForDebugEvent = (PWaitForDebugEvent)GetProcAddress(GetModuleHandleA("kernelbase.dll"), "WaitForDebugEvent");
+        DetourAttach(&(PVOID&)pOriginWaitForDebugEvent, WaitForDebugEventHandler);
+        pOriginWaitForDebugEventEx = (PWaitForDebugEventEx)GetProcAddress(GetModuleHandleA("kernelbase.dll"), "WaitForDebugEventEx");
+        DetourAttach(&(PVOID&)pOriginWaitForDebugEventEx, WaitForDebugEventExHandler);
+
+        pOriginDebugBreakProcess = (PDebugBreakProcess)GetProcAddress(GetModuleHandleA("kernel32.dll"), "DebugBreakProcess");
+        DetourAttach(&(PVOID&)pOriginDebugBreakProcess, DebugBreakProcessHandler);
+
         DetourTransactionCommit();
 
         //HookDllApi(GetModuleHandleA("ntdll.dll"), "NtReadVirtualMemory", (PVOID&)pOriginNtReadVirtualMemory, NtReadVirtualMemoryHandler);

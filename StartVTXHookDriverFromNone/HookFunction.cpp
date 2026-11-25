@@ -129,3 +129,36 @@ NTSTATUS NTAPI HookFunctionManager::NtSystemDebugControlHandler(
 	UNREFERENCED_PARAMETER(ReturnLength);
 	return STATUS_DEBUGGER_INACTIVE;
 }
+
+#pragma code_seg("PAGE")
+void HookFunctionManager::SetSyscallIndex(char* pFunctionName, UINT32 index)
+{
+	KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>* pContainer = (KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>*)buffer;
+	for (SIZE_TYPE idx = 0; idx < pContainer->Length(); ++idx)
+	{
+		//Èç¹û×Ö·û´®Æ¥Åä
+		if (!strncmp(&(*pContainer)[idx].functionName[0], pFunctionName, sizeof(*pContainer)[idx].functionName))
+		{
+			(*pContainer)[idx].index = index;
+			return;
+		}
+	}
+
+	SyscallIndexIn item = { {}, index };
+	strncpy_s(item.functionName, sizeof item.functionName, pFunctionName, strlen(pFunctionName));
+	pContainer->PushBack(item);
+}
+
+#pragma code_seg("PAGE")
+UINT32 HookFunctionManager::GetSyscallIndex(char* pFunctionName)
+{
+	KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>* pContainer = (KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>*)buffer;
+	for (SIZE_TYPE idx = 0; idx < pContainer->Length(); ++idx)
+	{
+		//Èç¹û×Ö·û´®Æ¥Åä
+		if (!strncmp(&(*pContainer)[idx].functionName[0], pFunctionName, sizeof(*pContainer)[idx].functionName))
+			return (*pContainer)[idx].index;
+	}
+
+	return (UINT32)-1;
+}

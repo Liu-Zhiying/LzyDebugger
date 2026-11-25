@@ -43,12 +43,23 @@ typedef UINT32 PTR_TYPE;
 //调用MmCopyVirtualMemory的内存读写
 #define IOCTL_WRITE_PROCESS_MEMORY_2 CTL_CODE(FILE_DEVICE_UNKNOWN, 0x809, METHOD_BUFFERED, FILE_ANY_ACCESS)
 #define IOCTL_READ_PROCESS_MEMORY_2 CTL_CODE(FILE_DEVICE_UNKNOWN, 0x80A, METHOD_BUFFERED, FILE_ANY_ACCESS)
+//模拟NtDebugActiveProcess API
+#define IOCTL_DEBUG_ACTVIE_PROCESS CTL_CODE(FILE_DEVICE_UNKNOWN, 0x80B, METHOD_BUFFERED, FILE_ANY_ACCESS)
+//模拟NtRemoveProcessDebug
+#define IOCTL_REMOVE_DEBUG_PROCESS CTL_CODE(FILE_DEVICE_UNKNOWN, 0x80C, METHOD_BUFFERED, FILE_ANY_ACCESS)
+//模拟DebugBreakProcess
+#define IOCTL_DEBUG_BREAK_PROCESS CTL_CODE(FILE_DEVICE_UNKNOWN, 0x80D, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 typedef struct _KernelRvaInfo {
     void* ZwCreateFileRVA;
     void* KeServiceDescriptorTableRVA;
     void* DirectoryTableBaseRVA;
     void* MmCopyVirtualMemoryRVA;
+    void* KiDispatchExceptionRVA;
+    void* PsSuspendProcessRVA;
+    void* PsResumeProcessRVA;
+    void* ntdll_DbgBreakPoint;
+    void* DbgkpPostFakeThreadMessagesRVA;
 } KernelRvaInfo, * PKernelRvaInfo;
 
 typedef struct _SyscallIndex {
@@ -84,6 +95,13 @@ struct RwProcessMemoryIn
     UINT64 processId2;
 
     RwProcessMemoryIn() : pBaseAddress(NULL), pBuffer(NULL), nSize(0), nSizeRW(0), processId1(0), processId2(0) {}
+};
+
+struct BindDebugProcess
+{
+    UINT64 DebuggerProcess;
+    UINT64 DebuggeeProcess;
+    PVOID debugEventAddFunction;
 };
 
 #endif

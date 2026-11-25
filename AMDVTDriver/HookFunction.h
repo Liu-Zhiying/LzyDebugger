@@ -46,6 +46,20 @@ private:
 		__in ULONG OutputBufferLength,
 		__out_opt PULONG ReturnLength);
 
+	static VOID NTAPI KiDispatchExceptionHandler(
+		IN PEXCEPTION_RECORD ExceptionRecord,
+		IN PKEXCEPTION_FRAME ExceptionFrame,
+		IN PKTRAP_FRAME TrapFrame,
+		IN KPROCESSOR_MODE PreviousMode,
+		IN BOOLEAN FirstChance);
+
+	static NTSTATUS NTAPI DbgkpPostFakeThreadMessagesHandler(
+		PEPROCESS Process,
+		PDEBUG_OBJECT DebugObject,
+		PETHREAD StartThread,
+		PETHREAD* pFirstThread,
+		PETHREAD* pLastThread);
+
 #pragma data_seg()
 	inline static bool isInited = false;
 	inline static PNtCreateProcess pOldNtCreateProcess = NULL;
@@ -59,6 +73,12 @@ private:
 
 	inline static PNtSystemDebugControl pOldNtSystemDebugControl = NULL;
 	inline static PNtSystemDebugControl pNtSystemDebugControlCaller = NULL;
+
+	inline static PKiDispatchException pOldKiDispatchException = NULL;
+	inline static PKiDispatchException pKiDispatchExceptionCaller = NULL;
+
+	inline static PDbgkpPostFakeThreadMessages pOldDbgkpPostFakeThreadMessages = NULL;
+	inline static PDbgkpPostFakeThreadMessages pDbgkpPostFakeThreadMessagesCaller = NULL;
 
 	inline static unsigned char buffer[sizeof(KernelVector<SyscallIndexIn, HOOK_FUNCTION_TAG, NonPaged>)];
 #pragma data_seg()
@@ -158,6 +178,36 @@ public:
 
 		pGlobalManager->nptHookManager.RemoveHook(pOldNtSystemDebugControl);
 		pGlobalManager->functionCallerManager.RemoveFunctionCaller(pOldNtSystemDebugControl);
+	}
+#pragma code_seg("PAGE")
+	static void HookDebugFunctions(GlobalManager* pGlobalManager, PVOID _pOldKiDispatchException, PVOID _pOldDbgkpPostFakeThreadMessages)
+	{
+		pOldDbgkpPostFakeThreadMessages = (PDbgkpPostFakeThreadMessages)_pOldDbgkpPostFakeThreadMessages;
+		pOldKiDispatchException = (PKiDispatchException)_pOldKiDispatchException;
+
+		NptHookRecord record = {};
+
+		pDbgkpPostFakeThreadMessagesCaller = (PDbgkpPostFakeThreadMessages)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldDbgkpPostFakeThreadMessages);
+
+		record.pOriginVirtAddr = pOldDbgkpPostFakeThreadMessages;
+		record.pGotoVirtAddr = DbgkpPostFakeThreadMessagesHandler;
+
+		//pGlobalManager->nptHookManager.AddHook(record);
+
+		pKiDispatchExceptionCaller = (PKiDispatchException)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldKiDispatchException);
+
+		record.pOriginVirtAddr = pOldKiDispatchException;
+		record.pGotoVirtAddr = KiDispatchExceptionHandler;
+
+		pGlobalManager->nptHookManager.AddHook(record);
+
+		KdPrint(("pOldDbgkpPostFakeThreadMessages = %p, pOldKiDispatchException = %p\n", pOldDbgkpPostFakeThreadMessages, pOldKiDispatchException));
+	}
+#pragma code_seg("PAGE")
+	static void UnhookDebugFunction(GlobalManager* pGlobalManager)
+	{
+		pGlobalManager->nptHookManager.RemoveHook(pOldKiDispatchException);
+		pGlobalManager->functionCallerManager.RemoveFunctionCaller(pOldKiDispatchException);
 	}
 };
 

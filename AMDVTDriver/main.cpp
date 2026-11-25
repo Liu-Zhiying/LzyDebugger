@@ -1,13 +1,22 @@
 #include "main.h"
 #include "HookFunction.h"
 #include "VirtualMemoryHelper.h"
+#include "ProcessThreadHelper.h"
 
 #pragma data_seg()
 VOID* pNtosKrnlBase = NULL;
 VOID* pKeServiceDescriptorTable = NULL;
 PTR_TYPE DirectoryTableBaseRVA;
 PMmCopyVirtualMemory pMmCopyVirtualMemory = NULL;
+PPsSuspendProcess pPsSuspendProcess = NULL;
+PPsResumeProcess pPsResumeProcess = NULL;
+PKiDispatchException pKiDispatchException = NULL;
 GlobalManager* pGlobalManager = NULL;
+char debugProcessBuffer[sizeof(KernelVector<BindDebugProcess, MAIN_TAG>)];
+KernelVector<BindDebugProcess, MAIN_TAG>* const pDebugProcessInfos = (KernelVector<BindDebugProcess, MAIN_TAG>*)&debugProcessBuffer;
+FAST_MUTEX debugProcessInfoLock;
+PVOID ntdll_DbgBreakPoint = NULL;
+PDbgkpPostFakeThreadMessages pDbgkpPostFakeThreadMessages = NULL;
 #pragma data_seg()
 
 #pragma code_seg("PAGE")
@@ -40,6 +49,11 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 			pKeServiceDescriptorTable = (PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->KeServiceDescriptorTableRVA;
 			DirectoryTableBaseRVA = (PTR_TYPE)pInfo->DirectoryTableBaseRVA;
 			pMmCopyVirtualMemory = (PMmCopyVirtualMemory)((PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->MmCopyVirtualMemoryRVA);
+			pPsSuspendProcess = (PPsSuspendProcess)((PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->PsSuspendProcessRVA);
+			pPsResumeProcess = (PPsResumeProcess)((PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->PsResumeProcessRVA);
+			pKiDispatchException = (PKiDispatchException)((PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->KiDispatchExceptionRVA);
+			ntdll_DbgBreakPoint = pInfo->ntdll_DbgBreakPoint;
+			pDbgkpPostFakeThreadMessages = (PDbgkpPostFakeThreadMessages)((PCHAR)pNtosKrnlBase + (ULONG_PTR)pInfo->DbgkpPostFakeThreadMessagesRVA);
 
 			Info = sizeof(KernelRvaInfo);
 		}
@@ -48,12 +62,15 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 	case IOCTL_START_VM_AND_HOOK:
 	{
+		HookFunctionManager::HookDebugFunctions(pGlobalManager, pKiDispatchException, pDbgkpPostFakeThreadMessages);
+
 		//启用进程HOOK
 		pGlobalManager->nptHookManager.EnableProcessHook(DirectoryTableBaseRVA);
 
 		//开始进行虚拟化
 		pGlobalManager->svmManager.EnterVirtualization();
 
+		
 		//HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
 
 		Info = 0;                                              // 纯写入，无返回长度
@@ -69,6 +86,8 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 		//开始退出虚拟化
 		pGlobalManager->svmManager.LeaveVirtualization();
+
+		HookFunctionManager::UnhookDebugFunction(pGlobalManager);
 
 		Info = 0;
 		break;
@@ -417,6 +436,113 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		}
 		break;
 	}
+	case IOCTL_DEBUG_ACTVIE_PROCESS:
+	{
+		Status = STATUS_UNSUCCESSFUL;
+
+		LONG inLen = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+
+		if (inLen == sizeof(BindDebugProcess))
+		{
+			BindDebugProcess* pInfo = (BindDebugProcess*)Irp->AssociatedIrp.SystemBuffer;
+
+			ExAcquireFastMutex(&debugProcessInfoLock);
+
+			if (pInfo->DebuggeeProcess == pInfo->DebuggerProcess) break;
+
+			pDebugProcessInfos->PushBack(*pInfo);
+
+			ExReleaseFastMutex(&debugProcessInfoLock);
+
+			Status = STATUS_SUCCESS;
+
+			Info = inLen;
+		}
+
+		break;
+	}
+	case IOCTL_REMOVE_DEBUG_PROCESS:
+	{
+		Status = STATUS_UNSUCCESSFUL;
+
+		LONG inLen = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+
+		if (inLen == sizeof(BindDebugProcess))
+		{
+			BindDebugProcess* pInfo = (BindDebugProcess*)Irp->AssociatedIrp.SystemBuffer;
+
+			ExAcquireFastMutex(&debugProcessInfoLock);
+
+			for (SIZE_T index = 0; index < pDebugProcessInfos->Length(); ++index)
+			{
+				if ((*pDebugProcessInfos)[index].DebuggeeProcess == pInfo->DebuggeeProcess &&
+					(*pDebugProcessInfos)[index].DebuggerProcess == pInfo->DebuggerProcess)
+				{
+					pDebugProcessInfos->Remove(index);
+					break;
+				}
+			}
+
+			ExReleaseFastMutex(&debugProcessInfoLock);
+
+			Status = STATUS_SUCCESS;
+
+			Info = inLen;
+		}
+
+		break;
+	}
+	case IOCTL_DEBUG_BREAK_PROCESS:
+	{
+		Status = STATUS_UNSUCCESSFUL;
+
+		LONG inLen = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
+
+		if (inLen == sizeof(UINT64))
+		{
+
+			UINT64* pProcessId = (UINT64*)Irp->AssociatedIrp.SystemBuffer;
+			PEPROCESS pProcess = NULL;
+			HANDLE hUserThread = NULL;
+			HANDLE userThreadId = NULL;
+
+			do
+			{
+				if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)*pProcessId, &pProcess)))
+					break;
+
+				Status = CreateUserThread(pProcess, (PUSER_THREAD_START_ROUTINE)ntdll_DbgBreakPoint, NULL, &hUserThread, &userThreadId);
+
+				if (!NT_SUCCESS(Status))
+					break;
+
+				if (hUserThread != NULL)
+				{
+					PETHREAD pUserThread = NULL;
+					ObReferenceObjectByHandle(hUserThread, THREAD_ALL_ACCESS, *PsThreadType, KernelMode, (PVOID*)&pUserThread, NULL);
+
+					if (pUserThread != NULL)
+					{
+						while (PsGetThreadExitStatus(pUserThread) == STATUS_PENDING) continue;
+						ObDereferenceObject(pUserThread);
+					}
+				}
+
+				Status = STATUS_SUCCESS;
+
+			} while (false);
+
+			if (hUserThread != NULL)
+				ZwClose(hUserThread);
+
+			if (pProcess != NULL) 
+				ObDereferenceObject(pProcess);
+
+			Info = inLen;
+		}
+
+		break;
+	}
 	default:
 	{
 		Status = STATUS_INVALID_DEVICE_REQUEST;                    // 4. 不识别的 IOCTL
@@ -451,6 +577,7 @@ void UnloadDriver(IN PDRIVER_OBJECT drvObj)
 	if (devObj != NULL)
 	{
 		CallDestroyer(pGlobalManager);
+		CallDestroyer((KernelVector<BindDebugProcess, MAIN_TAG>*)debugProcessBuffer);
 		HookFunctionManager::Deinit();
 		UNICODE_STRING symLinkName;
 		RtlInitUnicodeString(&symLinkName, L"\\DosDevices\\AMDVTDriver");
@@ -490,18 +617,18 @@ extern "C" NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 
 		status = IoCreateDevice(pDriverObject, sizeof(GlobalManager), &devName, FILE_DEVICE_UNKNOWN,
 			0, FALSE, &fdo);
-		DbgPrint("[*] IoCreateDevice = 0x%08X\n", status);
 		if (!NT_SUCCESS(status))
 			break;
 		initStep = 1;
 
 		status = IoCreateSymbolicLink(&symLinkName, &devName);
-		DbgPrint("[*] IoCreateSymbolicLink = 0x%08X\n", status);
 		if (!NT_SUCCESS(status))
 			break;
 		initStep = 2;
 
 		HookFunctionManager::Init();
+		CallConstructor((KernelVector<BindDebugProcess, MAIN_TAG>*)debugProcessBuffer);
+		ExInitializeFastMutex(&debugProcessInfoLock);
 
 		//使用设备扩展初始化GlobalManager
 		pGlobalManager = ((GlobalManager*)fdo->DeviceExtension);
@@ -540,36 +667,23 @@ extern "C" NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 	return STATUS_SUCCESS;
 }
 
-
-#pragma code_seg("PAGE")
-void HookFunctionManager::SetSyscallIndex(char* pFunctionName, UINT32 index)
+bool SearchDebuggeeProcessId(UINT64 processId, BindDebugProcess& info)
 {
-	KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>* pContainer = (KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>*)buffer;
-	for (SIZE_TYPE idx = 0; idx < pContainer->Length(); ++idx)
+	bool found = false;
+
+	ExAcquireFastMutex(&debugProcessInfoLock);
+
+	for (SIZE_T index = 0; index < pDebugProcessInfos->Length(); ++index)
 	{
-		//如果字符串匹配
-		if (!strncmp(&(*pContainer)[idx].functionName[0], pFunctionName, sizeof(*pContainer)[idx].functionName))
+		if ((*pDebugProcessInfos)[index].DebuggeeProcess == processId)
 		{
-			(*pContainer)[idx].index = index;
-			return;
+			found = true;
+			info = (*pDebugProcessInfos)[index];
+			break;
 		}
 	}
 
-	SyscallIndexIn item = { {}, index };
-	strncpy_s(item.functionName, sizeof item.functionName, pFunctionName, strlen(pFunctionName));
-	pContainer->PushBack(item);
-}
+	ExReleaseFastMutex(&debugProcessInfoLock);
 
-#pragma code_seg("PAGE")
-UINT32 HookFunctionManager::GetSyscallIndex(char* pFunctionName)
-{
-	KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>* pContainer = (KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>*)buffer;
-	for (SIZE_TYPE idx = 0; idx < pContainer->Length(); ++idx)
-	{
-		//如果字符串匹配
-		if (!strncmp(&(*pContainer)[idx].functionName[0], pFunctionName, sizeof(*pContainer)[idx].functionName))
-			return (*pContainer)[idx].index;
-	}
-
-	return (UINT32)-1;
+	return found;
 }

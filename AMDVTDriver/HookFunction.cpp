@@ -1,5 +1,12 @@
 #include "HookFunction.h"
+#include "DebugEvent.h"
+#include "VirtualMemoryHelper.h"
+#include "ProcessThreadHelper.h"
 
+#pragma warning(disable : 4302)
+#pragma warning(disable : 4311)
+
+#pragma code_seg()
 NTSTATUS NTAPI HookFunctionManager::NtCreateProcessHandler(
 	_Out_ PHANDLE				ProcessHandle,
 	_In_  ACCESS_MASK			DesiredAccess,
@@ -25,6 +32,7 @@ NTSTATUS NTAPI HookFunctionManager::NtCreateProcessHandler(
 	return status;
 }
 
+#pragma code_seg()
 NTSTATUS NTAPI HookFunctionManager::NtCreateFileHandler(
 	_Out_ PHANDLE FileHandle,
 	_In_ ACCESS_MASK DesiredAccess,
@@ -56,6 +64,7 @@ NTSTATUS NTAPI HookFunctionManager::NtCreateFileHandler(
 	return status;
 }
 
+#pragma code_seg()
 NTSTATUS NTAPI HookFunctionManager::NtQuerySystemInformationHandler(
 	SYSTEM_INFORMATION_CLASS SystemInformationClass,
 	PVOID                    SystemInformation,
@@ -111,6 +120,7 @@ NTSTATUS NTAPI HookFunctionManager::NtQuerySystemInformationHandler(
 	return status;
 }
 
+#pragma code_seg()
 NTSTATUS NTAPI HookFunctionManager::NtSystemDebugControlHandler(
 	__in SYSDBG_COMMAND Command,          // 要执行的操作
 	__in_opt PVOID InputBuffer,           // 输入参数（结构体，视命令而定）
@@ -128,4 +138,118 @@ NTSTATUS NTAPI HookFunctionManager::NtSystemDebugControlHandler(
 	UNREFERENCED_PARAMETER(OutputBufferLength);
 	UNREFERENCED_PARAMETER(ReturnLength);
 	return STATUS_DEBUGGER_INACTIVE;
+}
+
+#pragma code_seg()
+VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD ExceptionRecord, IN PKEXCEPTION_FRAME ExceptionFrame, IN PKTRAP_FRAME TrapFrame, IN KPROCESSOR_MODE PreviousMode, IN BOOLEAN FirstChance)
+{
+	/*
+	if (PreviousMode != KernelMode)
+	{
+		KdPrint(("aaa\n"));
+
+		BindDebugProcess info = {};
+		UINT64 debuggeeProcessId = (UINT64)PsGetCurrentProcessId();
+		bool isDebug = SearchDebuggeeProcessId(debuggeeProcessId, info);
+
+		if (isDebug)
+		{
+			DEBUG_EVENT event = {};
+
+			event.dwDebugEventCode = 0x1;
+
+			event.dwProcessId = (DWORD)PsGetCurrentProcessId();
+			event.dwThreadId = (DWORD)PsGetCurrentThreadId();
+
+			event.u.Exception.ExceptionRecord = *ExceptionRecord;
+			event.u.Exception.dwFirstChance = FirstChance;
+
+			PVOID pVirtualMemory = NULL;
+			PEPROCESS pProcess = NULL;
+			HANDLE hUserThread = NULL;
+			HANDLE userThreadId = {};
+
+			do
+			{
+				if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)info.DebuggerProcess, &pProcess)))
+					break;
+
+				AllocVirtualMemory(sizeof event, pProcess, &pVirtualMemory);
+
+				if (pVirtualMemory == NULL)
+					break;
+
+				WriteVirtualMemory(sizeof event, pProcess, pVirtualMemory, &event);
+
+				CreateUserThread(pProcess, (PUSER_THREAD_START_ROUTINE)info.debugEventAddFunction, pVirtualMemory, &hUserThread, &userThreadId);
+
+				if (hUserThread != NULL)
+				{
+					PETHREAD pUserThread = NULL;
+					ObReferenceObjectByHandle(hUserThread, THREAD_ALL_ACCESS, *PsThreadType, KernelMode, (PVOID*)&pUserThread, NULL);
+
+					if (pUserThread != NULL)
+					{
+						while (PsGetThreadExitStatus(pUserThread) == STATUS_PENDING) continue;
+						ObDereferenceObject(pUserThread);
+					}
+				}
+
+			} while (false);
+
+			if (hUserThread != NULL)
+				ZwClose(hUserThread);
+
+			if (pVirtualMemory != NULL)
+				FreeVirtualMemory(pProcess, pVirtualMemory);
+
+			if (pProcess != NULL)
+				ObDereferenceObject(pProcess);
+
+			return;
+		}
+	}
+	*/
+
+	return pKiDispatchExceptionCaller(ExceptionRecord, ExceptionFrame, TrapFrame, PreviousMode, FirstChance);
+}
+
+#pragma code_seg()
+NTSTATUS HookFunctionManager::DbgkpPostFakeThreadMessagesHandler(PEPROCESS Process, PDEBUG_OBJECT DebugObject, PETHREAD StartThread, PETHREAD* pFirstThread, PETHREAD* pLastThread)
+{
+	return pDbgkpPostFakeThreadMessagesCaller(Process, DebugObject, StartThread, pFirstThread, pLastThread);
+}
+
+
+#pragma code_seg("PAGE")
+void HookFunctionManager::SetSyscallIndex(char* pFunctionName, UINT32 index)
+{
+	KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>* pContainer = (KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>*)buffer;
+	for (SIZE_TYPE idx = 0; idx < pContainer->Length(); ++idx)
+	{
+		//如果字符串匹配
+		if (!strncmp(&(*pContainer)[idx].functionName[0], pFunctionName, sizeof(*pContainer)[idx].functionName))
+		{
+			(*pContainer)[idx].index = index;
+			return;
+		}
+	}
+
+	SyscallIndexIn item = { {}, index };
+	strncpy_s(item.functionName, sizeof item.functionName, pFunctionName, strlen(pFunctionName));
+	pContainer->PushBack(item);
+}
+
+#pragma code_seg("PAGE")
+UINT32 HookFunctionManager::GetSyscallIndex(char* pFunctionName)
+{
+	KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>* pContainer = (KernelVector<SyscallIndexIn, MAIN_TAG, NonPaged>*)buffer;
+	for (SIZE_TYPE idx = 0; idx < pContainer->Length(); ++idx)
+	{
+		//如果字符串匹配
+		if (!strncmp(&(*pContainer)[idx].functionName[0], pFunctionName, sizeof(*pContainer)[idx].functionName))
+			return (*pContainer)[idx].index;
+	}
+
+	return (UINT32)-1;
 }

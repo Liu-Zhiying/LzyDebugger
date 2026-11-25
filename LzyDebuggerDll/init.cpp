@@ -155,12 +155,22 @@ bool InitDebuggerDriver()
 	LPVOID zwCreateFileRVA = SearchRVA("ZwCreateFile", pdbPath.c_str());
 	LPVOID kiServiceTableRVA = SearchRVA("KeServiceDescriptorTable", pdbPath.c_str());
 	LPVOID mmCopyVirtualMemoryRVA = SearchRVA("MmCopyVirtualMemory", pdbPath.c_str());
+	LPVOID kiDispatchExceptionRVA = SearchRVA("KiDispatchException", pdbPath.c_str());
+	LPVOID psSuspendProcessRVA = SearchRVA("PsSuspendProcess", pdbPath.c_str());
+	LPVOID psResumeProcessRVA = SearchRVA("PsResumeProcess", pdbPath.c_str());
+	LPVOID dbgkpPostFakeThreadMessagesRVA = SearchRVA("DbgkpPostFakeThreadMessages", pdbPath.c_str());
 	LPVOID DirectoryTableBaseRVA = SearchFieldOffset("_KPROCESS", "Pcb.DirectoryTableBase", pdbPath.c_str());
+	LPVOID ntdll_DbgBreakPoint = GetProcAddress(GetModuleHandleA("ntdll.dll"), "DbgBreakPoint");
 
 	printf("RVA of ZwCreateFile = %p\n", zwCreateFileRVA);
 	printf("RVA of KeServiceDescriptorTable = %p\n", kiServiceTableRVA);
 	printf("RVA of DirectoryTableBase in EPROCESS = %p\n", DirectoryTableBaseRVA);
 	printf("RVA of MmCopyVirtualMemory = %p\n", mmCopyVirtualMemoryRVA);
+	printf("RVA of KiDispatchException = %p\n", kiDispatchExceptionRVA);
+	printf("RVA of PsSuspendProcess = %p\n", psSuspendProcessRVA);
+	printf("RVA of PsResumeProcess = %p\n", psResumeProcessRVA);
+	printf("RVA of DbgkpPostFakeThreadMessages = %p\n", dbgkpPostFakeThreadMessagesRVA);
+	printf("Address of DbgBreakPoint in ntdll.dll = %p\n", ntdll_DbgBreakPoint);
 
 	LPCWSTR pServiceName = NULL;
 	LPCSTR pDriverName = NULL;
@@ -225,6 +235,11 @@ bool InitDebuggerDriver()
 		rvaInfo.ZwCreateFileRVA = zwCreateFileRVA;
 		rvaInfo.DirectoryTableBaseRVA = DirectoryTableBaseRVA;
 		rvaInfo.MmCopyVirtualMemoryRVA = mmCopyVirtualMemoryRVA;
+		rvaInfo.KiDispatchExceptionRVA = kiDispatchExceptionRVA;
+		rvaInfo.PsSuspendProcessRVA = psSuspendProcessRVA;
+		rvaInfo.PsResumeProcessRVA = psResumeProcessRVA;
+		rvaInfo.DbgkpPostFakeThreadMessagesRVA = dbgkpPostFakeThreadMessagesRVA;
+		rvaInfo.ntdll_DbgBreakPoint = ntdll_DbgBreakPoint;
 
 		if (!DeviceIoControl(hDevice, IOCTL_SET_KERNEL_RVA, &rvaInfo, sizeof rvaInfo, NULL, 0, NULL, NULL))
 		{

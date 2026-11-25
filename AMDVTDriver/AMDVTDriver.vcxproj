@@ -91,11 +91,13 @@
     <ClInclude Include="main.h" />
     <ClInclude Include="ntapi.h" />
     <ClInclude Include="PageTable.h" />
+    <ClInclude Include="ProcessThreadHelper.h" />
     <ClInclude Include="SSDT.h" />
     <ClInclude Include="SVM.h" />
     <ClInclude Include="UnpublicAPI.h" />
     <ClInclude Include="VirtualMemoryHelper.h" />
     <ClInclude Include="Vmcb.h" />
+    <ClInclude Include="DebugEvent.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Basic.cpp" />
@@ -105,6 +107,7 @@
     <ClCompile Include="HookFunction.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="PageTable.cpp" />
+    <ClCompile Include="ProcessThreadHelper.cpp" />
     <ClCompile Include="SSDT.cpp" />
     <ClCompile Include="SVM.cpp" />
     <ClCompile Include="VirtualMemoryHelper.cpp" />
