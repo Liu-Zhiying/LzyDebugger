@@ -66,8 +66,10 @@ std::vector<SyscallIdx> ReadSyscall()
         const char* fnName = (const char*)((BYTE*)hMod + names[i]);
         FARPROC addr = GetProcAddress(hMod, fnName);
         if (addr != NULL) {
-            UINT32 index = -1;
-            index = DumpSyscallIndex(addr);
+            bool x = false;
+            //逆天，不放这个代码NtCreateFile可能读不出来，编程界的诡异事件，梗成真了。
+            if (!strcmp(fnName, "NtCreateFile"));
+            UINT32 index = DumpSyscallIndex(addr);
             if (index != -1)
             {
                 SyscallIdx item = { fnName, index };
