@@ -185,6 +185,10 @@ bool NptHookManager::HandleBreakpoint(VirtCpuInfo* pVirtCpuInfo, GenericRegister
 		if (hookIdx != INVALID_INDEX)
 		{
 			pGuestRegisters->rip = (UINT64)data.processHookRecords[hookIdx].pGotoVirtAddr;
+			pVirtCpuInfo->guestVmcb.controlFields.nRip = pGuestRegisters->rip;
+
+			pVirtCpuInfo->guestVmcb.controlFields.eventInj.data = 0;
+
 			result = true;
 		}
 	}
@@ -196,6 +200,10 @@ bool NptHookManager::HandleBreakpoint(VirtCpuInfo* pVirtCpuInfo, GenericRegister
 		if (hookIdx != INVALID_INDEX)
 		{
 			pGuestRegisters->rip = (UINT64)data.hookRecords[hookIdx].pGotoVirtAddr;
+			pVirtCpuInfo->guestVmcb.controlFields.nRip = pGuestRegisters->rip;
+
+			pVirtCpuInfo->guestVmcb.controlFields.eventInj.data = 0;
+
 			result = true;
 		}
 	}
@@ -325,8 +333,6 @@ bool NptHookManager::HandleNpf(VirtCpuInfo* pVirtCpuInfo, GenericRegisters* pGue
 				hookStatus.pLastActiveHookPageVirtAddr = NULL;
 				hookStatus.premissionStatus = NptHookStatus::PremissionStatus::HookPageNotExecuted;
 			}
-
-			pVirtCpuInfo->guestVmcb.controlFields.tlbControl = 1;
 
 			result = true;
 		}

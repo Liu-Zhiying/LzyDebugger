@@ -126,12 +126,12 @@ public:
 		index = GetSyscallIndex("NtCreateFile");
 
 		pOldNtCreateFile = (PNtCreateFile)GetSubFunctionInSSDTByIndex(pSSDT, index);
-		//pNtCreateFileCaller = (PNtCreateFile)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtCreateFile);
+		pNtCreateFileCaller = (PNtCreateFile)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtCreateFile);
 
 		record.pOriginVirtAddr = pOldNtCreateFile;
-		record.pGotoVirtAddr = pNtCreateFileCaller;
+		record.pGotoVirtAddr = NtCreateFileHandler;
 
-		//pGlobalManager->nptHookManager.AddHook(record);
+		pGlobalManager->nptHookManager.AddHook(record);
 
 		// IOCTL 派发时当前就是用户进程上下文
 		PHYSICAL_ADDRESS pa = MmGetPhysicalAddress((PVOID)0x7FFE0000);
@@ -147,12 +147,12 @@ public:
 		index = GetSyscallIndex("NtQuerySystemInformation");
 
 		pOldNtQuerySystemInformation = (PNtQuerySystemInformation)GetSubFunctionInSSDTByIndex(pSSDT, index);
-		//pNtQuerySystemInformationCaller = (PNtQuerySystemInformation)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtQuerySystemInformation);
+		pNtQuerySystemInformationCaller = (PNtQuerySystemInformation)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtQuerySystemInformation);
 
 		record.pOriginVirtAddr = pOldNtQuerySystemInformation;
 		record.pGotoVirtAddr = NtQuerySystemInformationHandler;
 
-		//pGlobalManager->nptHookManager.AddHook(record);
+		pGlobalManager->nptHookManager.AddHook(record);
 
 		index = GetSyscallIndex("NtSystemDebugControl");
 
