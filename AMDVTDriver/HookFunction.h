@@ -129,7 +129,7 @@ public:
 		//pNtCreateFileCaller = (PNtCreateFile)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtCreateFile);
 
 		record.pOriginVirtAddr = pOldNtCreateFile;
-		record.pGotoVirtAddr = NtCreateFileHandler;
+		record.pGotoVirtAddr = pNtCreateFileCaller;
 
 		//pGlobalManager->nptHookManager.AddHook(record);
 
@@ -147,12 +147,12 @@ public:
 		index = GetSyscallIndex("NtQuerySystemInformation");
 
 		pOldNtQuerySystemInformation = (PNtQuerySystemInformation)GetSubFunctionInSSDTByIndex(pSSDT, index);
-		pNtQuerySystemInformationCaller = (PNtQuerySystemInformation)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtQuerySystemInformation);
+		//pNtQuerySystemInformationCaller = (PNtQuerySystemInformation)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtQuerySystemInformation);
 
 		record.pOriginVirtAddr = pOldNtQuerySystemInformation;
 		record.pGotoVirtAddr = NtQuerySystemInformationHandler;
 
-		pGlobalManager->nptHookManager.AddHook(record);
+		//pGlobalManager->nptHookManager.AddHook(record);
 
 		index = GetSyscallIndex("NtSystemDebugControl");
 

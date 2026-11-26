@@ -247,8 +247,10 @@ bool InitDebuggerDriver()
 			break;
 		}
 
-		for (SyscallIdx& item : array)
+		for (SIZE_T index = 0; index < array.size(); ++index)
 		{
+			SyscallIdx& item = array[index];
+
 			SyscallIndexIn in = {};
 			strncpy_s(in.functionName, item.functionName.c_str(), sizeof in.functionName);
 			in.index = item.index;
