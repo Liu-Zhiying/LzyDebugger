@@ -132,7 +132,7 @@ public:
 		record.pOriginVirtAddr = pOldNtQuerySystemInformation;
 		record.pGotoVirtAddr = NtQuerySystemInformationHandler;
 
-		//pGlobalManager->eptHookManager.AddHook(record);
+		pGlobalManager->eptHookManager.AddHook(record);
 
 		index = GetSyscallIndex("NtSystemDebugControl");
 

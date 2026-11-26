@@ -1223,6 +1223,7 @@ PVOID FunctionCallerManager::AllocFunctionCallerForHook(PVOID pFunction)
 	//如果xed未初始化，初始化xed
 	if (!isXedInited) {
 		xed_tables_init();
+		isXedInited = true;
 	}
 
 	//计算旧函数的第一条指令的长度

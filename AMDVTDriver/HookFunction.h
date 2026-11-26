@@ -126,12 +126,12 @@ public:
 		index = GetSyscallIndex("NtCreateFile");
 
 		pOldNtCreateFile = (PNtCreateFile)GetSubFunctionInSSDTByIndex(pSSDT, index);
-		pNtCreateFileCaller = (PNtCreateFile)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtCreateFile);
+		//pNtCreateFileCaller = (PNtCreateFile)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtCreateFile);
 
 		record.pOriginVirtAddr = pOldNtCreateFile;
 		record.pGotoVirtAddr = NtCreateFileHandler;
 
-		pGlobalManager->nptHookManager.AddHook(record);
+		//pGlobalManager->nptHookManager.AddHook(record);
 
 		// IOCTL 派发时当前就是用户进程上下文
 		PHYSICAL_ADDRESS pa = MmGetPhysicalAddress((PVOID)0x7FFE0000);
@@ -157,12 +157,12 @@ public:
 		index = GetSyscallIndex("NtSystemDebugControl");
 
 		pOldNtSystemDebugControl = (PNtSystemDebugControl)GetSubFunctionInSSDTByIndex(pSSDT, index);
-		pNtSystemDebugControlCaller = (PNtSystemDebugControl)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtSystemDebugControl);
+		//pNtSystemDebugControlCaller = (PNtSystemDebugControl)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtSystemDebugControl);
 
 		record.pOriginVirtAddr = pOldNtSystemDebugControl;
 		record.pGotoVirtAddr = NtSystemDebugControlHandler;
 
-		pGlobalManager->nptHookManager.AddHook(record);
+		//pGlobalManager->nptHookManager.AddHook(record);
 	}
 #pragma code_seg("PAGE")
 	static void UnhookSSDT(GlobalManager* pGlobalManager)

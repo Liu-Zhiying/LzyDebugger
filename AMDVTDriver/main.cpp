@@ -62,14 +62,14 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 	case IOCTL_START_VM_AND_HOOK:
 	{
-		HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
-		HookFunctionManager::HookDebugFunctions(pGlobalManager, pKiDispatchException, pDbgkpPostFakeThreadMessages);
-
 		//启用进程HOOK
 		pGlobalManager->nptHookManager.EnableProcessHook(DirectoryTableBaseRVA);
 
 		//开始进行虚拟化
 		pGlobalManager->svmManager.EnterVirtualization();
+
+		HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
+		//HookFunctionManager::HookDebugFunctions(pGlobalManager, pKiDispatchException, pDbgkpPostFakeThreadMessages);
 
 		Info = 0;                                              // 纯写入，无返回长度
 		break;
@@ -80,11 +80,11 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		//禁用进程HOOK
 		pGlobalManager->nptHookManager.DisableProcessHook();
 
+		//HookFunctionManager::UnhookDebugFunction(pGlobalManager);
+		HookFunctionManager::UnhookSSDT(pGlobalManager);
+
 		//开始退出虚拟化
 		pGlobalManager->svmManager.LeaveVirtualization();
-
-		HookFunctionManager::UnhookDebugFunction(pGlobalManager);
-		HookFunctionManager::UnhookSSDT(pGlobalManager);
 
 		Info = 0;
 		break;
@@ -119,36 +119,40 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 			PEPROCESS pProcess = NULL;
 
-			PsLookupProcessByProcessId((HANDLE)pInfo->processId, &pProcess);
-
-			if (pProcess == NULL)
 			{
-				Status = STATUS_UNSUCCESSFUL;
-				break;
-			}
+				PsLookupProcessByProcessId((HANDLE)pInfo->processId, &pProcess);
 
-			//触发写时复制
+				if (pProcess == NULL)
+				{
+					Status = STATUS_UNSUCCESSFUL;
+					break;
+				}
 
-			Status = TouchReadonlyCowPage(record.pOriginVirtAddr, pProcess);
+				//触发写时复制
 
-			if (!NT_SUCCESS(Status))
-				break;
+				Status = TouchReadonlyCowPage(record.pOriginVirtAddr, pProcess);
 
-			//锁定页面
+				if (!NT_SUCCESS(Status))
+					break;
 
-			Status = LockVirtualMemory(pInfo->pOriginVirtAddr, pProcess);
+				//锁定页面
 
-			if (!NT_SUCCESS(Status))
-				break;
+				Status = LockVirtualMemory(pInfo->pOriginVirtAddr, pProcess);
 
-			Status = LockVirtualMemory(pInfo->pGotoVirtAddr, pProcess);
+				if (!NT_SUCCESS(Status))
+					break;
 
-			if (!NT_SUCCESS(Status))
-				break;
+				Status = LockVirtualMemory(pInfo->pGotoVirtAddr, pProcess);
 
-			pGlobalManager->nptHookManager.AddProcessHook(record, pProcess);
+				if (!NT_SUCCESS(Status))
+					break;
 
-			ObDereferenceObject(pProcess);
+				pGlobalManager->nptHookManager.AddProcessHook(record, pProcess);
+
+			} while (false);
+
+			if (pProcess != NULL)
+				ObDereferenceObject(pProcess);
 
 			Info = inLen;
 		}

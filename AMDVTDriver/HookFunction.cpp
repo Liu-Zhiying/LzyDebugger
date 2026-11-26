@@ -27,7 +27,7 @@ NTSTATUS NTAPI HookFunctionManager::NtCreateProcessHandler(
 		DebugPort,
 		ExceptionPort);
 
-	//KdPrint(("NtCreateProcess called!\n"));
+	KdPrint(("NtCreateProcess called!\n"));
 
 	return status;
 }
@@ -71,6 +71,8 @@ NTSTATUS NTAPI HookFunctionManager::NtQuerySystemInformationHandler(
 	ULONG                    SystemInformationLength,
 	PULONG                   ReturnLength)
 {
+	//KdPrint(("NtQuerySystemInformation called!\n"));
+
 	NTSTATUS status = pNtQuerySystemInformationCaller(
 		SystemInformationClass,
 		SystemInformation,
@@ -78,12 +80,12 @@ NTSTATUS NTAPI HookFunctionManager::NtQuerySystemInformationHandler(
 		ReturnLength);
 
 	if (SystemInformationClass == SystemCodeIntegrityInformation) {
-		//KdPrint(("有程序检测测试模式, pid = %llu！\n", PsGetCurrentProcessId()));
+		KdPrint(("有程序检测测试模式, pid = %llu！\n", PsGetCurrentProcessId()));
 		if (SystemInformation != NULL &&
 			SystemInformationLength >= sizeof(SYSTEM_CODEINTEGRITY_INFORMATION) &&
 			NT_SUCCESS(status)) {
 
-			//KdPrint(("测试模式检测已经HOOK！\n"));
+			KdPrint(("测试模式检测已经HOOK！\n"));
 
 			PSYSTEM_CODEINTEGRITY_INFORMATION pInfo =
 				(PSYSTEM_CODEINTEGRITY_INFORMATION)SystemInformation;
@@ -95,13 +97,13 @@ NTSTATUS NTAPI HookFunctionManager::NtQuerySystemInformationHandler(
 
 	if (SystemInformationClass == SystemKernelDebuggerInformation)
 	{
-		//KdPrint(("有程序检测内核调试, pid = %llu！\n", PsGetCurrentProcessId()));
+		KdPrint(("有程序检测内核调试, pid = %llu！\n", PsGetCurrentProcessId()));
 
 		if (SystemInformation != NULL &&
 			SystemInformationLength >= sizeof(SYSTEM_KERNEL_DEBUGGER_INFORMATION) &&
 			NT_SUCCESS(status)) {
 
-			//KdPrint(("内核调试检测已经HOOK！\n"));
+			KdPrint(("内核调试检测已经HOOK！\n"));
 
 			PSYSTEM_KERNEL_DEBUGGER_INFORMATION debuggerInfo =
 				(PSYSTEM_KERNEL_DEBUGGER_INFORMATION)SystemInformation;

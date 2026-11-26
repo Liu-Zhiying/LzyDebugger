@@ -65,7 +65,7 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		//启用进程HOOK
 		pGlobalManager->eptHookManager.EnableProcessHook(DirectoryTableBaseRVA);
 
-		//HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
+		HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
 
 		Info = 0;                                              // 纯写入，无返回长度
 		break;
@@ -73,7 +73,7 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 	case IOCTL_STOP_VM_AND_UNHOOK:
 	{
-		//HookFunctionManager::UnhookSSDT(pGlobalManager);
+		HookFunctionManager::UnhookSSDT(pGlobalManager);
 
 		//禁用进程HOOK
 		pGlobalManager->eptHookManager.DisableProcessHook();
@@ -114,36 +114,40 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 			PEPROCESS pProcess = NULL;
 
-			PsLookupProcessByProcessId((HANDLE)pInfo->processId, &pProcess);
-
-			if (pProcess == NULL)
 			{
-				Status = STATUS_UNSUCCESSFUL;
-				break;
-			}
+				PsLookupProcessByProcessId((HANDLE)pInfo->processId, &pProcess);
 
-			//触发写时复制
+				if (pProcess == NULL)
+				{
+					Status = STATUS_UNSUCCESSFUL;
+					break;
+				}
 
-			Status = TouchReadonlyCowPage(record.pOriginVirtAddr, pProcess);
+				//触发写时复制
 
-			if (!NT_SUCCESS(Status))
-				break;
+				Status = TouchReadonlyCowPage(record.pOriginVirtAddr, pProcess);
 
-			//锁定页面
+				if (!NT_SUCCESS(Status))
+					break;
 
-			Status = LockVirtualMemory(pInfo->pOriginVirtAddr, pProcess);
+				//锁定页面
 
-			if (!NT_SUCCESS(Status))
-				break;
+				Status = LockVirtualMemory(pInfo->pOriginVirtAddr, pProcess);
 
-			Status = LockVirtualMemory(pInfo->pGotoVirtAddr, pProcess);
+				if (!NT_SUCCESS(Status))
+					break;
 
-			if (!NT_SUCCESS(Status))
-				break;
+				Status = LockVirtualMemory(pInfo->pGotoVirtAddr, pProcess);
 
-			pGlobalManager->eptHookManager.AddProcessHook(record, pProcess);
+				if (!NT_SUCCESS(Status))
+					break;
 
-			ObDereferenceObject(pProcess);
+				pGlobalManager->eptHookManager.AddProcessHook(record, pProcess);
+
+			} while (false);
+
+			if (pProcess != NULL)
+				ObDereferenceObject(pProcess);
 
 			Info = inLen;
 		}

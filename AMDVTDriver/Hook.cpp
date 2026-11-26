@@ -274,6 +274,8 @@ bool NptHookManager::HandleNpf(VirtCpuInfo* pVirtCpuInfo, GenericRegisters* pGue
 						tempPhyAddr = data.swapPageRecord[swapPageIdx].pOriginPhyAddr;
 
 						internalCorePageTableManager.ChangePageTableEntryPermession(tempPhyAddr, entry, 1);
+
+						pVirtCpuInfo->guestVmcb.controlFields.tlbControl = 1;
 					}
 				}
 			}
@@ -299,6 +301,8 @@ bool NptHookManager::HandleNpf(VirtCpuInfo* pVirtCpuInfo, GenericRegisters* pGue
 					tempPhyAddr = data.swapPageRecord[swapPageIdx].pOriginPhyAddr;
 
 					internalCorePageTableManager.ChangePageTableEntryPermession(tempPhyAddr, entry, 1);
+
+					pVirtCpuInfo->guestVmcb.controlFields.tlbControl = 1;
 				}
 
 				//切换到内部页表
@@ -515,15 +519,8 @@ NTSTATUS NptHookManager::AddHookInSignleCore(const NptHookRecord& record, UINT32
 
 		corePageTableManager1.ChangePageTableEntryPermession(pOriginPhyAddr, permission, 1);
 
-		{
-			PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
-			SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-		}
-
-		{
-			PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,RECOVER_TLB_SUBFUNCTION,0 };
-			SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-		}
+		PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
+		SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
 	}
 
 	return status;
@@ -638,15 +635,8 @@ NTSTATUS NptHookManager::RemoveHookInSignleCore(PVOID pHookOriginVirtAddr, UINT3
 
 	} while (false);
 
-	{
-		PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
-		SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-	}
-
-	{
-		PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,RECOVER_TLB_SUBFUNCTION,0 };
-		SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-	}
+	PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
+	SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
 
 	return status;
 }
@@ -849,15 +839,8 @@ NTSTATUS NptHookManager::AddProcessHookInSignleCore(const NptProcessHookRecord& 
 
 		corePageTableManager1.ChangePageTableEntryPermession(pOriginPhyAddr, permission, 1);
 
-		{
-			PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
-			SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-		}
-
-		{
-			PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,RECOVER_TLB_SUBFUNCTION,0 };
-			SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-		}
+		PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
+		SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
 	}
 
 	return status;
@@ -971,15 +954,8 @@ NTSTATUS NptHookManager::RemoveProcessHookInSignleCore(PVOID pHookOriginVirtAddr
 
 	} while (false);
 
-	{
-		PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
-		SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-	}
-
-	{
-		PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,RECOVER_TLB_SUBFUNCTION,0 };
-		SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
-	}
+	PTR_TYPE regs[4] = { GUEST_CALL_VMM_SVMCALL_FUNCTION,0,FLUSH_TLB_SUBFUNCTION,0 };
+	SetRegsThenSVMCallWrapper(&regs[0], &regs[1], &regs[2], &regs[3]);
 
 	return status;
 }
@@ -1184,6 +1160,7 @@ PVOID FunctionCallerManager::AllocFunctionCallerForHook(PVOID pFunction)
 	//如果xed未初始化，初始化xed
 	if (!isXedInited) {
 		xed_tables_init();
+		isXedInited = true;
 	}
 
 	//计算旧函数的第一条指令的长度
