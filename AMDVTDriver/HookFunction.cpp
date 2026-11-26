@@ -59,7 +59,7 @@ NTSTATUS NTAPI HookFunctionManager::NtCreateFileHandler(
 		EaBuffer,
 		EaLength);
 
-	//KdPrint(("NtCreateFile called!\n"));
+	KdPrint(("NtCreateFile called!\n"));
 
 	return status;
 }
@@ -71,13 +71,13 @@ NTSTATUS NTAPI HookFunctionManager::NtQuerySystemInformationHandler(
 	ULONG                    SystemInformationLength,
 	PULONG                   ReturnLength)
 {
-	//KdPrint(("NtQuerySystemInformation called!\n"));
-
 	NTSTATUS status = pNtQuerySystemInformationCaller(
 		SystemInformationClass,
 		SystemInformation,
 		SystemInformationLength,
 		ReturnLength);
+
+	//KdPrint(("NtQuerySystemInformation called!\n"));
 
 	if (SystemInformationClass == SystemCodeIntegrityInformation) {
 		KdPrint(("有程序检测测试模式, pid = %llu！\n", PsGetCurrentProcessId()));

@@ -105,7 +105,7 @@ public:
 
 		index = GetSyscallIndex("NtCreateFile");
 
-		pOldNtCreateFile = (PNtCreateFile)GetSubFunctionInSSDTByIndex(pSSDT, index);
+		//pOldNtCreateFile = (PNtCreateFile)GetSubFunctionInSSDTByIndex(pSSDT, index);
 		pNtCreateFileCaller = (PNtCreateFile)pGlobalManager->functionCallerManager.GetFunctionCaller(pOldNtCreateFile);
 
 		record.pOriginVirtAddr = pOldNtCreateFile;
