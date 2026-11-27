@@ -340,12 +340,12 @@ typedef NTSTATUS(NTAPI *PNtWaitForDebugEvent)(
 
 PNtWaitForDebugEvent pOriginNtWaitForDebugEvent = NULL;
 
-NTSTATUS NTAPI WaitForDebugEventHandler(
+NTSTATUS NTAPI NtWaitForDebugEventHandler(
     IN BOOLEAN Alertable,
     IN PLARGE_INTEGER Timeout OPTIONAL,
     OUT PDBGUI_WAIT_STATE_CHANGE StateChange)
 {
-    printf("bbb\n");
+    
 
     if (Timeout == NULL)
     {
@@ -354,6 +354,8 @@ NTSTATUS NTAPI WaitForDebugEventHandler(
         *StateChange = debugEvents.front();
         debugEvents.erase(debugEvents.begin());
         UNLOCK_DEBUG_EVENTS();
+
+        printf("bbb\n");
 
         SetLastError(ERROR_SUCCESS);
         return STATUS_SUCCESS;
@@ -380,11 +382,15 @@ NTSTATUS NTAPI WaitForDebugEventHandler(
             debugEvents.erase(debugEvents.begin());
             UNLOCK_DEBUG_EVENTS();
 
+            printf("ccc\n");
+
             SetLastError(ERROR_SUCCESS);
             return STATUS_SUCCESS;
         }
         else
         {
+            printf("ddd\n");
+
             SetLastError(ERROR_TIMEOUT);
             return STATUS_TIMEOUT;
         }
@@ -424,10 +430,8 @@ BOOL __declspec(dllexport) WINAPI DllMain(
         pOriginNtRemoveProcessDebug = (PNtRemoveProcessDebug)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtRemoveProcessDebug");
         DetourAttach(&(PVOID&)pOriginNtRemoveProcessDebug, NtRemoveProcessDebugHandler);
 
-        pOriginWaitForDebugEvent = (PWaitForDebugEvent)GetProcAddress(GetModuleHandleA("kernelbase.dll"), "WaitForDebugEvent");
-        DetourAttach(&(PVOID&)pOriginWaitForDebugEvent, WaitForDebugEventHandler);
-        pOriginWaitForDebugEventEx = (PWaitForDebugEventEx)GetProcAddress(GetModuleHandleA("kernelbase.dll"), "WaitForDebugEventEx");
-        DetourAttach(&(PVOID&)pOriginWaitForDebugEventEx, WaitForDebugEventExHandler);
+        pOriginNtWaitForDebugEvent = (PNtWaitForDebugEvent)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtWaitForDebugEvent");
+        DetourAttach(&(PVOID&)pOriginNtWaitForDebugEvent, NtWaitForDebugEventHandler);
 
         pOriginDebugBreakProcess = (PDebugBreakProcess)GetProcAddress(GetModuleHandleA("kernel32.dll"), "DebugBreakProcess");
         DetourAttach(&(PVOID&)pOriginDebugBreakProcess, DebugBreakProcessHandler);
