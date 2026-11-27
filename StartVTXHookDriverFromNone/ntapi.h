@@ -58,6 +58,21 @@ extern "C" {
 			_Outptr_ PEPROCESS* Process
 		);
 
+#if (NTDDI_VERSION >= NTDDI_WIN2K)
+	NTKERNELAPI
+		NTSTATUS
+		ObOpenObjectByPointer(
+			_In_ PVOID Object,
+			_In_ ULONG HandleAttributes,
+			_In_opt_ PACCESS_STATE PassedAccessState,
+			_In_ ACCESS_MASK DesiredAccess,
+			_In_opt_ POBJECT_TYPE ObjectType,
+			_In_ KPROCESSOR_MODE AccessMode,
+			_Out_ PHANDLE Handle
+		);
+#endif
+
+
 #ifdef __cplusplus
 }
 #endif
@@ -193,5 +208,74 @@ typedef NTSTATUS(NTAPI* PNtProtectVirtualMemory)(
 	_Inout_ PSIZE_T RegionSize,       // 大小，会被向上取整到页边界
 	_In_ ULONG NewProtect,            // 新的保护属性
 	_Out_ PULONG OldProtect);         // 返回旧的保护属性
+
+typedef NTSTATUS(NTAPI* PPsSuspendProcess)(PEPROCESS Process);
+typedef NTSTATUS(NTAPI* PPsResumeProcess)(PEPROCESS Process);
+
+typedef VOID(NTAPI* PKiDispatchException)(
+	IN PEXCEPTION_RECORD ExceptionRecord,
+	IN PKEXCEPTION_FRAME ExceptionFrame,
+	IN PKTRAP_FRAME TrapFrame,
+	IN KPROCESSOR_MODE PreviousMode,
+	IN BOOLEAN FirstChance);
+
+typedef NTSTATUS (NTAPI* PNtAllocateVirtualMemory)(
+	HANDLE		ProcessHandle,
+	PVOID*		BaseAddress,
+	ULONG_PTR	ZeroBits,
+	PSIZE_T		RegionSize,
+	ULONG		AllocationType,
+	ULONG		Protect);
+
+typedef NTSTATUS(NTAPI* PNtFreeVirtualMemory)(
+	HANDLE  ProcessHandle,
+	PVOID* BaseAddress,
+	PSIZE_T RegionSize,
+	ULONG   FreeType);
+
+typedef struct _PS_ATTRIBUTE {
+	ULONG_PTR Attribute;    // 属性类型标识符
+	SIZE_T Size;            // 值的大小（字节）
+	union {
+		ULONG_PTR Value;    // 直接存储的值
+		PVOID ValuePtr;     // 指向值缓冲区的指针
+	};
+	PSIZE_T ReturnLength;   // 可选，接收实际返回的数据长度
+} PS_ATTRIBUTE, * PPS_ATTRIBUTE;
+
+typedef struct _PS_ATTRIBUTE_LIST {
+	SIZE_T TotalLength;
+	PS_ATTRIBUTE Attributes[1];
+} PS_ATTRIBUTE_LIST, * PPS_ATTRIBUTE_LIST;
+
+typedef DWORD32(NTAPI* PUSER_THREAD_START_ROUTINE)(
+	_In_ PVOID ThreadParameter);
+
+typedef NTSTATUS(NTAPI* PNtCreateThreadEx)(
+	_Out_ PHANDLE ThreadHandle,
+	_In_ ACCESS_MASK DesiredAccess,
+	_In_opt_ PCOBJECT_ATTRIBUTES ObjectAttributes,
+	_In_ HANDLE ProcessHandle,
+	_In_ PUSER_THREAD_START_ROUTINE StartRoutine,
+	_In_opt_ PVOID Argument,
+	_In_ ULONG CreateFlags,
+	_In_ SIZE_T ZeroBits,
+	_In_ SIZE_T StackSize,
+	_In_ SIZE_T MaximumStackSize,
+	_In_opt_ PPS_ATTRIBUTE_LIST AttributeList);
+
+typedef struct _DEBUG_OBJECT {
+	KEVENT EventsPresent;   // +0x00 指示有调试事件发生的事件对象
+	FAST_MUTEX Mutex;       // +0x10 用于同步的快速互斥体
+	LIST_ENTRY EventList;   // +0x30 保存待处理调试消息的链表
+	ULONG Flags;            // +0x38 标志位（如调试消息是否已读取等）
+} DEBUG_OBJECT, *PDEBUG_OBJECT;
+
+typedef NTSTATUS(NTAPI* PDbgkpPostFakeThreadMessages)(
+	PEPROCESS Process,
+	PDEBUG_OBJECT DebugObject,
+	PETHREAD StartThread,
+	PETHREAD* pFirstThread,
+	PETHREAD* pLastThread);
 
 #endif

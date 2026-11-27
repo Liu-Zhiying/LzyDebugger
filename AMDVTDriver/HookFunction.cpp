@@ -1,6 +1,5 @@
 #include "HookFunction.h"
 #define KERNEL_USE
-#include "..\LzyDebuggerDll\dbgstatus.h"
 #include "VirtualMemoryHelper.h"
 #include "ProcessThreadHelper.h"
 
@@ -148,73 +147,6 @@ VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD Except
 {
 	if (PreviousMode != KernelMode)
 	{
-		KdPrint(("aaa\n"));
-
-		BindDebugProcess info = {};
-		UINT64 debuggeeProcessId = (UINT64)PsGetCurrentProcessId();
-		bool isDebug = SearchDebuggeeProcessId(debuggeeProcessId, info);
-
-		if (isDebug)
-		{
-			DBGUI_WAIT_STATE_CHANGE event = {};
-
-			if (ExceptionRecord->ExceptionCode == STATUS_BREAKPOINT)
-				event.NewState = DbgBreakpointStateChange;
-			else if (ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP)
-				event.NewState = DbgSingleStepStateChange;
-			else
-				event.NewState = DbgExceptionStateChange;
-
-			event.AppClientId.UniqueProcess = PsGetCurrentProcessId();
-			event.AppClientId.UniqueThread = PsGetCurrentThreadId();
-
-			event.StateInfo.Exception.ExceptionRecord = *ExceptionRecord;
-			event.StateInfo.Exception.FirstChance = FirstChance;
-
-			PVOID pVirtualMemory = NULL;
-			PEPROCESS pProcess = NULL;
-			HANDLE hUserThread = NULL;
-			HANDLE userThreadId = {};
-
-			do
-			{
-				if (!NT_SUCCESS(PsLookupProcessByProcessId((HANDLE)info.DebuggerProcess, &pProcess)))
-					break;
-
-				AllocVirtualMemory(sizeof event, pProcess, &pVirtualMemory);
-
-				if (pVirtualMemory == NULL)
-					break;
-
-				WriteVirtualMemory(sizeof event, pProcess, pVirtualMemory, &event);
-
-				CreateUserThread(pProcess, (PUSER_THREAD_START_ROUTINE)info.debugEventAddFunction, pVirtualMemory, &hUserThread, &userThreadId);
-
-				if (hUserThread != NULL)
-				{
-					PETHREAD pUserThread = NULL;
-					ObReferenceObjectByHandle(hUserThread, THREAD_ALL_ACCESS, *PsThreadType, KernelMode, (PVOID*)&pUserThread, NULL);
-
-					if (pUserThread != NULL)
-					{
-						while (PsGetThreadExitStatus(pUserThread) == STATUS_PENDING) continue;
-						ObDereferenceObject(pUserThread);
-					}
-				}
-
-			} while (false);
-
-			if (hUserThread != NULL)
-				ZwClose(hUserThread);
-
-			if (pVirtualMemory != NULL)
-				FreeVirtualMemory(pProcess, pVirtualMemory);
-
-			if (pProcess != NULL)
-				ObDereferenceObject(pProcess);
-
-			return;
-		}
 	}
 
 	return pKiDispatchExceptionCaller(ExceptionRecord, ExceptionFrame, TrapFrame, PreviousMode, FirstChance);

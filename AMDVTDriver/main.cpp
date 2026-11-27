@@ -12,9 +12,6 @@ PPsSuspendProcess pPsSuspendProcess = NULL;
 PPsResumeProcess pPsResumeProcess = NULL;
 PKiDispatchException pKiDispatchException = NULL;
 GlobalManager* pGlobalManager = NULL;
-char debugProcessBuffer[sizeof(KernelVector<BindDebugProcess, MAIN_TAG>)];
-KernelVector<BindDebugProcess, MAIN_TAG>* const pDebugProcessInfos = (KernelVector<BindDebugProcess, MAIN_TAG>*)&debugProcessBuffer;
-FAST_MUTEX debugProcessInfoLock;
 PVOID ntdll_DbgBreakPoint = NULL;
 PDbgkpPostFakeThreadMessages pDbgkpPostFakeThreadMessages = NULL;
 #pragma data_seg()
@@ -437,62 +434,6 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		}
 		break;
 	}
-	case IOCTL_DEBUG_ACTVIE_PROCESS:
-	{
-		Status = STATUS_UNSUCCESSFUL;
-
-		LONG inLen = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
-
-		if (inLen == sizeof(BindDebugProcess))
-		{
-			BindDebugProcess* pInfo = (BindDebugProcess*)Irp->AssociatedIrp.SystemBuffer;
-
-			ExAcquireFastMutex(&debugProcessInfoLock);
-
-			if (pInfo->DebuggeeProcess == pInfo->DebuggerProcess) break;
-
-			pDebugProcessInfos->PushBack(*pInfo);
-
-			ExReleaseFastMutex(&debugProcessInfoLock);
-
-			Status = STATUS_SUCCESS;
-
-			Info = inLen;
-		}
-
-		break;
-	}
-	case IOCTL_REMOVE_DEBUG_PROCESS:
-	{
-		Status = STATUS_UNSUCCESSFUL;
-
-		LONG inLen = IrpSp->Parameters.DeviceIoControl.InputBufferLength;
-
-		if (inLen == sizeof(BindDebugProcess))
-		{
-			BindDebugProcess* pInfo = (BindDebugProcess*)Irp->AssociatedIrp.SystemBuffer;
-
-			ExAcquireFastMutex(&debugProcessInfoLock);
-
-			for (SIZE_T index = 0; index < pDebugProcessInfos->Length(); ++index)
-			{
-				if ((*pDebugProcessInfos)[index].DebuggeeProcess == pInfo->DebuggeeProcess &&
-					(*pDebugProcessInfos)[index].DebuggerProcess == pInfo->DebuggerProcess)
-				{
-					pDebugProcessInfos->Remove(index);
-					break;
-				}
-			}
-
-			ExReleaseFastMutex(&debugProcessInfoLock);
-
-			Status = STATUS_SUCCESS;
-
-			Info = inLen;
-		}
-
-		break;
-	}
 	case IOCTL_DEBUG_BREAK_PROCESS:
 	{
 		Status = STATUS_UNSUCCESSFUL;
@@ -565,7 +506,6 @@ void UnloadDriver(IN PDRIVER_OBJECT drvObj)
 	if (devObj != NULL)
 	{
 		CallDestroyer(pGlobalManager);
-		CallDestroyer((KernelVector<BindDebugProcess, MAIN_TAG>*)debugProcessBuffer);
 		HookFunctionManager::Deinit();
 		UNICODE_STRING symLinkName;
 		RtlInitUnicodeString(&symLinkName, L"\\DosDevices\\AMDVTDriver");
@@ -615,8 +555,6 @@ extern "C" NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 		initStep = 2;
 
 		HookFunctionManager::Init();
-		CallConstructor((KernelVector<BindDebugProcess, MAIN_TAG>*)debugProcessBuffer);
-		ExInitializeFastMutex(&debugProcessInfoLock);
 
 		//使用设备扩展初始化GlobalManager
 		pGlobalManager = ((GlobalManager*)fdo->DeviceExtension);
@@ -653,26 +591,4 @@ extern "C" NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 	}
 
 	return STATUS_SUCCESS;
-}
-
-#pragma code_seg()
-bool SearchDebuggeeProcessId(UINT64 processId, BindDebugProcess& info)
-{
-	bool found = false;
-
-	ExAcquireFastMutex(&debugProcessInfoLock);
-
-	for (SIZE_T index = 0; index < pDebugProcessInfos->Length(); ++index)
-	{
-		if ((*pDebugProcessInfos)[index].DebuggeeProcess == processId)
-		{
-			found = true;
-			info = (*pDebugProcessInfos)[index];
-			break;
-		}
-	}
-
-	ExReleaseFastMutex(&debugProcessInfoLock);
-
-	return found;
 }

@@ -46,9 +46,5 @@ public:
 };
 
 extern VOID* pKeServiceDescriptorTable;
-extern KernelVector<BindDebugProcess, MAIN_TAG>* const pDebugProcessInfos;
-extern FAST_MUTEX debugProcessInfoLock;
-
-bool SearchDebuggeeProcessId(UINT64 processId, BindDebugProcess& info);
 
 #endif

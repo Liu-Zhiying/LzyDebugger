@@ -4,7 +4,4 @@
 #include "dll.h"
 #include <Windows.h>
 
-BOOL DLL WINAPI DebugBreakProcessHandler(
-    IN HANDLE Process);
-
 #endif

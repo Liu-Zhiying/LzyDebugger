@@ -52,6 +52,9 @@
     <ClInclude Include="VirtualMemoryHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ProcessThreadHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Basic.cpp">
@@ -82,6 +85,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="VirtualMemoryHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProcessThreadHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

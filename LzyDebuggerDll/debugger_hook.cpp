@@ -3,7 +3,6 @@
 #include "init.h"
 #include "CtrlDefine.h"
 #include "DllApiHook.h"
-#include "dbgstatus.h"
 #include <string>
 #include <Windows.h>
 #include <detours.h>
@@ -234,20 +233,6 @@ NtWriteVirtualMemoryHandler(
     }
 }
 
-LONG debugEventsLock;
-std::vector<DBGUI_WAIT_STATE_CHANGE> debugEvents;
-
-#define LOCK_DEBUG_EVENTS() while (!InterlockedCompareExchange(&debugEventsLock, 1, 0)) continue;
-#define UNLOCK_DEBUG_EVENTS() InterlockedCompareExchange(&debugEventsLock, 0, 1);
-
-unsigned __stdcall AddNewDebugEvent(IN PDBGUI_WAIT_STATE_CHANGE pDebugEvent)
-{
-    LOCK_DEBUG_EVENTS();
-    debugEvents.push_back(*pDebugEvent);
-    UNLOCK_DEBUG_EVENTS();
-    return 0;
-}
-
 typedef BOOL(WINAPI* PDebugBreakProcess)(
     IN HANDLE Process);
 
@@ -270,128 +255,6 @@ BOOL DLL WINAPI DebugBreakProcessHandler(
         return FALSE;
 
     return TRUE;
-}
-
-typedef NTSTATUS(NTAPI* PNtDebugActiveProcess)(
-    _In_ HANDLE ProcessHandle,
-    _In_ HANDLE DebugObjectHandle);
-
-PNtDebugActiveProcess pOriginNtDebugActiveProcess = NULL;
-
-NTSTATUS NTAPI NtDebugActiveProcessHandler(
-    _In_ HANDLE ProcessHandle,
-    _In_ HANDLE DebugObjectHandle)
-{
-    HANDLE hDevice = GetDriverHandle();
-    if (hDevice == INVALID_HANDLE_VALUE)
-    {
-        ShowDriverNotInitError("NtDebugActiveProcess");
-        CleanDriverHandle();
-        return STATUS_ACCESS_DENIED;
-    }
-
-    BindDebugProcess info = {};
-
-    info.DebuggeeProcess = GetProcessId(ProcessHandle);
-    info.DebuggerProcess = GetCurrentProcessId();
-    info.debugEventAddFunction = AddNewDebugEvent;
-
-    if (info.DebuggeeProcess == info.DebuggerProcess) return STATUS_UNSUCCESSFUL;
-
-    if (!DeviceIoControl(hDevice, IOCTL_DEBUG_ACTVIE_PROCESS, &info, sizeof info, NULL, 0, NULL, NULL))
-        return STATUS_ACCESS_DENIED;
-
-    DebugBreakProcessHandler(ProcessHandle);
-
-    return STATUS_SUCCESS;
-}
-
-typedef NTSTATUS (NTAPI *PNtRemoveProcessDebug)(
-    _In_ HANDLE ProcessHandle,
-    _In_ HANDLE DebugObjectHandle);
-
-PNtRemoveProcessDebug pOriginNtRemoveProcessDebug = NULL;
-
-NTSTATUS NTAPI NtRemoveProcessDebugHandler(
-    _In_ HANDLE ProcessHandle,
-    _In_ HANDLE DebugObjectHandle)
-{
-    HANDLE hDevice = GetDriverHandle();
-    if (hDevice == INVALID_HANDLE_VALUE)
-    {
-        ShowDriverNotInitError("NtDebugActiveProcess");
-        CleanDriverHandle();
-        return STATUS_ACCESS_DENIED;
-    }
-
-    BindDebugProcess info = {};
-
-    info.DebuggeeProcess = GetProcessId(ProcessHandle);
-    info.DebuggerProcess = GetCurrentProcessId();
-
-    if (!DeviceIoControl(hDevice, IOCTL_REMOVE_DEBUG_PROCESS, &info, sizeof info, NULL, 0, NULL, NULL))
-        return STATUS_ACCESS_DENIED;
-
-    return STATUS_SUCCESS;
-}
-
-typedef NTSTATUS(NTAPI *PNtWaitForDebugEvent)(
-    IN HANDLE DebugHandle,
-    IN BOOLEAN Alertable,
-    IN PLARGE_INTEGER Timeout OPTIONAL,
-    OUT PDBGUI_WAIT_STATE_CHANGE StateChange);
-
-PNtWaitForDebugEvent pOriginNtWaitForDebugEvent = NULL;
-
-NTSTATUS NTAPI NtWaitForDebugEventHandler(
-    IN HANDLE DebugHandle,
-    IN BOOLEAN Alertable,
-    IN PLARGE_INTEGER Timeout OPTIONAL,
-    OUT PDBGUI_WAIT_STATE_CHANGE StateChange)
-{
-    if (Timeout == NULL)
-    {
-        while (debugEvents.size() == 0) continue;
-        LOCK_DEBUG_EVENTS();
-        *StateChange = debugEvents.front();
-        debugEvents.erase(debugEvents.begin());
-        UNLOCK_DEBUG_EVENTS();
-
-        SetLastError(ERROR_SUCCESS);
-        return STATUS_SUCCESS;
-    }
-    else
-    {
-        LARGE_INTEGER beginTime = {};
-
-        LARGE_INTEGER frequency = {};
-        LARGE_INTEGER endTime = {};
-        LARGE_INTEGER msElapsed = {};
-
-        QueryPerformanceFrequency(&frequency);
-        QueryPerformanceCounter(&beginTime);
-
-        while (debugEvents.size() == 0 && msElapsed.QuadPart < Timeout->QuadPart)
-        {
-            QueryPerformanceCounter(&endTime);
-            msElapsed.QuadPart = (endTime.QuadPart - beginTime.QuadPart) * 1000 / frequency.QuadPart;
-        }
-        if (debugEvents.size() != 0)
-        {
-            LOCK_DEBUG_EVENTS();
-            *StateChange = debugEvents.front();
-            debugEvents.erase(debugEvents.begin());
-            UNLOCK_DEBUG_EVENTS();
-
-            SetLastError(ERROR_SUCCESS);
-            return STATUS_SUCCESS;
-        }
-        else
-        {
-            SetLastError(ERROR_TIMEOUT);
-            return STATUS_TIMEOUT;
-        }
-    }
 }
 
 BOOL __declspec(dllexport) WINAPI DllMain(
@@ -421,22 +284,10 @@ BOOL __declspec(dllexport) WINAPI DllMain(
         DetourAttach(&(PVOID&)pOriginNtReadVirtualMemory, NtReadVirtualMemoryHandler);
         pOriginNtWriteVirtualMemory = (PNtWriteVirtualMemory)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtWriteVirtualMemory");
         DetourAttach(&(PVOID&)pOriginNtWriteVirtualMemory, NtWriteVirtualMemoryHandler);
-
-        pOriginNtDebugActiveProcess = (PNtDebugActiveProcess)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtDebugActiveProcess");
-        DetourAttach(&(PVOID&)pOriginNtDebugActiveProcess, NtDebugActiveProcessHandler);
-        pOriginNtRemoveProcessDebug = (PNtRemoveProcessDebug)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtRemoveProcessDebug");
-        DetourAttach(&(PVOID&)pOriginNtRemoveProcessDebug, NtRemoveProcessDebugHandler);
-
-        pOriginNtWaitForDebugEvent = (PNtWaitForDebugEvent)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtWaitForDebugEvent");
-        DetourAttach(&(PVOID&)pOriginNtWaitForDebugEvent, NtWaitForDebugEventHandler);
-
         pOriginDebugBreakProcess = (PDebugBreakProcess)GetProcAddress(GetModuleHandleA("kernel32.dll"), "DebugBreakProcess");
         DetourAttach(&(PVOID&)pOriginDebugBreakProcess, DebugBreakProcessHandler);
 
         DetourTransactionCommit();
-
-        //HookDllApi(GetModuleHandleA("ntdll.dll"), "NtReadVirtualMemory", (PVOID&)pOriginNtReadVirtualMemory, NtReadVirtualMemoryHandler);
-        //HookDllApi(GetModuleHandleA("ntdll.dll"), "NtWriteVirtualMemory", (PVOID&)pOriginNtWriteVirtualMemory, NtWriteVirtualMemoryHandler);
 
         break;
     }
