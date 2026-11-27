@@ -458,8 +458,8 @@ NTSTATUS WriteVirtualMemory(_In_ SIZE_T size, _In_ PEPROCESS pProcess, _Out_ PVO
 		if (pMdl == NULL) break;
 
 		__try {
-			ProbeForRead(pMemOut, size, 1);
-			MmProbeAndLockPages(pMdl, UserMode, IoReadAccess);
+			ProbeForWrite(pMemOut, size, 1);
+			MmProbeAndLockPages(pMdl, UserMode, IoWriteAccess);
 			bMdlLocked = TRUE;
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER) {

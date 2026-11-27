@@ -144,7 +144,7 @@ NTSTATUS NTAPI HookFunctionManager::NtSystemDebugControlHandler(
 }
 
 #pragma code_seg()
-VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD ExceptionRecord, IN PKEXCEPTION_FRAME ExceptionFrame, IN PKTRAP_FRAME TrapFrame, IN KPROCESSOR_MODE PreviousMode, IN BOOLEAN FirstChance)
+VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD ExceptionRecord, IN PKEXCEPTION_FRAME ExceptionFrame, IN PKTRAP_FRAME TrapFrame, IN KPROCESSOR_MODE          PreviousMode, IN BOOLEAN FirstChance)
 {
 	if (PreviousMode != KernelMode)
 	{
@@ -158,7 +158,12 @@ VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD Except
 		{
 			DBGUI_WAIT_STATE_CHANGE event = {};
 
-			event.NewState = DbgExceptionStateChange;
+			if (ExceptionRecord->ExceptionCode == STATUS_BREAKPOINT)
+				event.NewState = DbgBreakpointStateChange;
+			else if (ExceptionRecord->ExceptionCode == STATUS_SINGLE_STEP)
+				event.NewState = DbgSingleStepStateChange;
+			else
+				event.NewState = DbgExceptionStateChange;
 
 			event.AppClientId.UniqueProcess = PsGetCurrentProcessId();
 			event.AppClientId.UniqueThread = PsGetCurrentThreadId();

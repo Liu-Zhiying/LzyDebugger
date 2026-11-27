@@ -516,18 +516,6 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 				if (!NT_SUCCESS(Status))
 					break;
 
-				if (hUserThread != NULL)
-				{
-					PETHREAD pUserThread = NULL;
-					ObReferenceObjectByHandle(hUserThread, THREAD_ALL_ACCESS, *PsThreadType, KernelMode, (PVOID*)&pUserThread, NULL);
-
-					if (pUserThread != NULL)
-					{
-						while (PsGetThreadExitStatus(pUserThread) == STATUS_PENDING) continue;
-						ObDereferenceObject(pUserThread);
-					}
-				}
-
 				Status = STATUS_SUCCESS;
 
 			} while (false);

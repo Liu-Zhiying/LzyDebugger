@@ -138,7 +138,8 @@ UINT32 GetSegmentLimit2(_In_ UINT16 SegmentSelector, _In_ ULONG_PTR GdtBase)
 #pragma code_seg()
 extern "C" void CompareGenericRegisters(const GenericRegisters& genericRegistersNow, GenericRegisters& genericRegistersPrev)
 {
-
+	UNREFERENCED_PARAMETER(genericRegistersNow);
+	UNREFERENCED_PARAMETER(genericRegistersPrev);
 #define ASSERT_REGISTER_IS_EQUAL(regField) \
 	NT_ASSERT(!RtlCompareMemory(&genericRegistersNow.regField, &genericRegistersPrev.regField, sizeof(genericRegistersNow.regField)))
 

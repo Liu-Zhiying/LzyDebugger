@@ -16,6 +16,7 @@
 #define HookDllApi HookDllApiX86
 #endif
 
+#define STATUS_UNSUCCESSFUL 0xC0000001;
 #define STATUS_ACCESS_DENIED 0xC0000022;
 #define STATUS_PARTIAL_COPY 0x8000000D;
 #define STATUS_SUCCESS 0
@@ -242,7 +243,6 @@ std::vector<DBGUI_WAIT_STATE_CHANGE> debugEvents;
 unsigned __stdcall AddNewDebugEvent(IN PDBGUI_WAIT_STATE_CHANGE pDebugEvent)
 {
     LOCK_DEBUG_EVENTS();
-    printf("aaa\n");
     debugEvents.push_back(*pDebugEvent);
     UNLOCK_DEBUG_EVENTS();
     return 0;
@@ -296,6 +296,8 @@ NTSTATUS NTAPI NtDebugActiveProcessHandler(
     info.DebuggerProcess = GetCurrentProcessId();
     info.debugEventAddFunction = AddNewDebugEvent;
 
+    if (info.DebuggeeProcess == info.DebuggerProcess) return STATUS_UNSUCCESSFUL;
+
     if (!DeviceIoControl(hDevice, IOCTL_DEBUG_ACTVIE_PROCESS, &info, sizeof info, NULL, 0, NULL, NULL))
         return STATUS_ACCESS_DENIED;
 
@@ -334,6 +336,7 @@ NTSTATUS NTAPI NtRemoveProcessDebugHandler(
 }
 
 typedef NTSTATUS(NTAPI *PNtWaitForDebugEvent)(
+    IN HANDLE DebugHandle,
     IN BOOLEAN Alertable,
     IN PLARGE_INTEGER Timeout OPTIONAL,
     OUT PDBGUI_WAIT_STATE_CHANGE StateChange);
@@ -341,12 +344,11 @@ typedef NTSTATUS(NTAPI *PNtWaitForDebugEvent)(
 PNtWaitForDebugEvent pOriginNtWaitForDebugEvent = NULL;
 
 NTSTATUS NTAPI NtWaitForDebugEventHandler(
+    IN HANDLE DebugHandle,
     IN BOOLEAN Alertable,
     IN PLARGE_INTEGER Timeout OPTIONAL,
     OUT PDBGUI_WAIT_STATE_CHANGE StateChange)
 {
-    
-
     if (Timeout == NULL)
     {
         while (debugEvents.size() == 0) continue;
@@ -355,14 +357,13 @@ NTSTATUS NTAPI NtWaitForDebugEventHandler(
         debugEvents.erase(debugEvents.begin());
         UNLOCK_DEBUG_EVENTS();
 
-        printf("bbb\n");
-
         SetLastError(ERROR_SUCCESS);
         return STATUS_SUCCESS;
     }
     else
     {
         LARGE_INTEGER beginTime = {};
+
         LARGE_INTEGER frequency = {};
         LARGE_INTEGER endTime = {};
         LARGE_INTEGER msElapsed = {};
@@ -382,15 +383,11 @@ NTSTATUS NTAPI NtWaitForDebugEventHandler(
             debugEvents.erase(debugEvents.begin());
             UNLOCK_DEBUG_EVENTS();
 
-            printf("ccc\n");
-
             SetLastError(ERROR_SUCCESS);
             return STATUS_SUCCESS;
         }
         else
         {
-            printf("ddd\n");
-
             SetLastError(ERROR_TIMEOUT);
             return STATUS_TIMEOUT;
         }
