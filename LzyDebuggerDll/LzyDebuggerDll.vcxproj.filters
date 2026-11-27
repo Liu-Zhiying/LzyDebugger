@@ -147,6 +147,9 @@
     <ClInclude Include="DllApiHook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="dbgstatus.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="cpu.cpp">

@@ -3,6 +3,7 @@
 #include "init.h"
 #include "CtrlDefine.h"
 #include "DllApiHook.h"
+#include "dbgstatus.h"
 #include <string>
 #include <Windows.h>
 #include <detours.h>
@@ -233,12 +234,12 @@ NtWriteVirtualMemoryHandler(
 }
 
 LONG debugEventsLock;
-std::vector<DEBUG_EVENT> debugEvents;
+std::vector<DBGUI_WAIT_STATE_CHANGE> debugEvents;
 
 #define LOCK_DEBUG_EVENTS() while (!InterlockedCompareExchange(&debugEventsLock, 1, 0)) continue;
 #define UNLOCK_DEBUG_EVENTS() InterlockedCompareExchange(&debugEventsLock, 0, 1);
 
-unsigned __stdcall AddNewDebugEvent(IN LPDEBUG_EVENT pDebugEvent)
+unsigned __stdcall AddNewDebugEvent(IN PDBGUI_WAIT_STATE_CHANGE pDebugEvent)
 {
     LOCK_DEBUG_EVENTS();
     printf("aaa\n");
@@ -332,28 +333,30 @@ NTSTATUS NTAPI NtRemoveProcessDebugHandler(
     return STATUS_SUCCESS;
 }
 
-typedef BOOL(APIENTRY* PWaitForDebugEvent)(
-    _Out_ LPDEBUG_EVENT lpDebugEvent,
-    _In_ DWORD dwMilliseconds);
+typedef NTSTATUS(NTAPI *PNtWaitForDebugEvent)(
+    IN BOOLEAN Alertable,
+    IN PLARGE_INTEGER Timeout OPTIONAL,
+    OUT PDBGUI_WAIT_STATE_CHANGE StateChange);
 
-PWaitForDebugEvent pOriginWaitForDebugEvent = NULL;
+PNtWaitForDebugEvent pOriginNtWaitForDebugEvent = NULL;
 
-BOOL APIENTRY WaitForDebugEventHandler(
-    _Out_ LPDEBUG_EVENT lpDebugEvent,
-    _In_ DWORD dwMilliseconds)
+NTSTATUS NTAPI WaitForDebugEventHandler(
+    IN BOOLEAN Alertable,
+    IN PLARGE_INTEGER Timeout OPTIONAL,
+    OUT PDBGUI_WAIT_STATE_CHANGE StateChange)
 {
     printf("bbb\n");
 
-    if (dwMilliseconds == INFINITE)
+    if (Timeout == NULL)
     {
         while (debugEvents.size() == 0) continue;
         LOCK_DEBUG_EVENTS();
-        *lpDebugEvent = debugEvents.front();
+        *StateChange = debugEvents.front();
         debugEvents.erase(debugEvents.begin());
         UNLOCK_DEBUG_EVENTS();
 
         SetLastError(ERROR_SUCCESS);
-        return ERROR_SUCCESS;
+        return STATUS_SUCCESS;
     }
     else
     {
@@ -365,7 +368,7 @@ BOOL APIENTRY WaitForDebugEventHandler(
         QueryPerformanceFrequency(&frequency);
         QueryPerformanceCounter(&beginTime);
 
-        while (debugEvents.size() == 0 && msElapsed.QuadPart < dwMilliseconds)
+        while (debugEvents.size() == 0 && msElapsed.QuadPart < Timeout->QuadPart)
         {
             QueryPerformanceCounter(&endTime);
             msElapsed.QuadPart = (endTime.QuadPart - beginTime.QuadPart) * 1000 / frequency.QuadPart;
@@ -373,74 +376,17 @@ BOOL APIENTRY WaitForDebugEventHandler(
         if (debugEvents.size() != 0)
         {
             LOCK_DEBUG_EVENTS();
-            *lpDebugEvent = debugEvents.front();
+            *StateChange = debugEvents.front();
             debugEvents.erase(debugEvents.begin());
             UNLOCK_DEBUG_EVENTS();
 
             SetLastError(ERROR_SUCCESS);
-            return ERROR_SUCCESS;
+            return STATUS_SUCCESS;
         }
         else
         {
             SetLastError(ERROR_TIMEOUT);
-            return ERROR_TIMEOUT;
-        }
-    }
-}
-
-typedef BOOL(APIENTRY* PWaitForDebugEventEx)(
-    _Out_ LPDEBUG_EVENT lpDebugEvent,
-    _In_ DWORD dwMilliseconds);
-
-PWaitForDebugEventEx pOriginWaitForDebugEventEx = NULL;
-
-BOOL APIENTRY WaitForDebugEventExHandler(
-    _Out_ LPDEBUG_EVENT lpDebugEvent,
-    _In_ DWORD dwMilliseconds)
-{
-    printf("bbb\n");
-
-    if (dwMilliseconds == INFINITE)
-    {
-        while (debugEvents.size() == 0) continue;
-        LOCK_DEBUG_EVENTS();
-        *lpDebugEvent = debugEvents.front();
-        debugEvents.erase(debugEvents.begin());
-        UNLOCK_DEBUG_EVENTS();
-
-        SetLastError(ERROR_SUCCESS);
-        return ERROR_SUCCESS;
-    }
-    else
-    {
-        LARGE_INTEGER beginTime = {};
-        LARGE_INTEGER frequency = {};
-        LARGE_INTEGER endTime = {};
-        LARGE_INTEGER msElapsed = {};
-
-        QueryPerformanceFrequency(&frequency);
-        QueryPerformanceCounter(&beginTime);
-
-        while (debugEvents.size() == 0 && msElapsed.QuadPart < dwMilliseconds)
-        {
-            QueryPerformanceCounter(&endTime);
-            msElapsed.QuadPart = (endTime.QuadPart - beginTime.QuadPart) * 1000 / frequency.QuadPart;
-
-            if (debugEvents.size() != 0)
-            {
-                LOCK_DEBUG_EVENTS();
-                *lpDebugEvent = debugEvents.front();
-                debugEvents.erase(debugEvents.begin());
-                UNLOCK_DEBUG_EVENTS();
-
-                SetLastError(ERROR_SUCCESS);
-                return ERROR_SUCCESS;
-            }
-            else
-            {
-                SetLastError(ERROR_TIMEOUT);
-                return ERROR_TIMEOUT;
-            }
+            return STATUS_TIMEOUT;
         }
     }
 }

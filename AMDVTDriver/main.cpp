@@ -69,7 +69,7 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		pGlobalManager->svmManager.EnterVirtualization();
 
 		HookFunctionManager::HookSSDT(pKeServiceDescriptorTable, pGlobalManager);
-		//HookFunctionManager::HookDebugFunctions(pGlobalManager, pKiDispatchException, pDbgkpPostFakeThreadMessages);
+		HookFunctionManager::HookDebugFunctions(pGlobalManager, pKiDispatchException, pDbgkpPostFakeThreadMessages);
 
 		Info = 0;                                              // 纯写入，无返回长度
 		break;
@@ -80,7 +80,7 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 		//禁用进程HOOK
 		pGlobalManager->nptHookManager.DisableProcessHook();
 
-		//HookFunctionManager::UnhookDebugFunction(pGlobalManager);
+		HookFunctionManager::UnhookDebugFunction(pGlobalManager);
 		HookFunctionManager::UnhookSSDT(pGlobalManager);
 
 		//开始退出虚拟化
@@ -501,7 +501,6 @@ NTSTATUS DriverControlHandler(IN PDEVICE_OBJECT,
 
 		if (inLen == sizeof(UINT64))
 		{
-
 			UINT64* pProcessId = (UINT64*)Irp->AssociatedIrp.SystemBuffer;
 			PEPROCESS pProcess = NULL;
 			HANDLE hUserThread = NULL;
@@ -668,6 +667,7 @@ extern "C" NTSTATUS DriverEntry(IN PDRIVER_OBJECT pDriverObject,
 	return STATUS_SUCCESS;
 }
 
+#pragma code_seg()
 bool SearchDebuggeeProcessId(UINT64 processId, BindDebugProcess& info)
 {
 	bool found = false;

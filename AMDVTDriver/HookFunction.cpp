@@ -1,5 +1,6 @@
 #include "HookFunction.h"
-#include "DebugEvent.h"
+#define KERNEL_USE
+#include "..\LzyDebuggerDll\dbgstatus.h"
 #include "VirtualMemoryHelper.h"
 #include "ProcessThreadHelper.h"
 
@@ -27,7 +28,7 @@ NTSTATUS NTAPI HookFunctionManager::NtCreateProcessHandler(
 		DebugPort,
 		ExceptionPort);
 
-	KdPrint(("NtCreateProcess called, status = %u!\n", status));
+	//KdPrint(("NtCreateProcess called, status = %u!\n", status));
 
 	return status;
 }
@@ -59,7 +60,7 @@ NTSTATUS NTAPI HookFunctionManager::NtCreateFileHandler(
 		EaBuffer,
 		EaLength);
 
-	KdPrint(("NtCreateFile called status = %u!\n", status));
+	//KdPrint(("NtCreateFile called status = %u!\n", status));
 
 	return status;
 }
@@ -77,7 +78,7 @@ NTSTATUS NTAPI HookFunctionManager::NtQuerySystemInformationHandler(
 		SystemInformationLength,
 		ReturnLength);
 
-	KdPrint(("NtQuerySystemInformation called, status = %u!\n", status));
+	//KdPrint(("NtQuerySystemInformation called, status = %u!\n", status));
 
 	if (SystemInformationClass == SystemCodeIntegrityInformation) {
 		KdPrint(("有程序检测测试模式, pid = %llu！\n", PsGetCurrentProcessId()));
@@ -145,7 +146,6 @@ NTSTATUS NTAPI HookFunctionManager::NtSystemDebugControlHandler(
 #pragma code_seg()
 VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD ExceptionRecord, IN PKEXCEPTION_FRAME ExceptionFrame, IN PKTRAP_FRAME TrapFrame, IN KPROCESSOR_MODE PreviousMode, IN BOOLEAN FirstChance)
 {
-	/*
 	if (PreviousMode != KernelMode)
 	{
 		KdPrint(("aaa\n"));
@@ -156,15 +156,15 @@ VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD Except
 
 		if (isDebug)
 		{
-			DEBUG_EVENT event = {};
+			DBGUI_WAIT_STATE_CHANGE event = {};
 
-			event.dwDebugEventCode = 0x1;
+			event.NewState = DbgExceptionStateChange;
 
-			event.dwProcessId = (DWORD)PsGetCurrentProcessId();
-			event.dwThreadId = (DWORD)PsGetCurrentThreadId();
+			event.AppClientId.UniqueProcess = PsGetCurrentProcessId();
+			event.AppClientId.UniqueThread = PsGetCurrentThreadId();
 
-			event.u.Exception.ExceptionRecord = *ExceptionRecord;
-			event.u.Exception.dwFirstChance = FirstChance;
+			event.StateInfo.Exception.ExceptionRecord = *ExceptionRecord;
+			event.StateInfo.Exception.FirstChance = FirstChance;
 
 			PVOID pVirtualMemory = NULL;
 			PEPROCESS pProcess = NULL;
@@ -211,7 +211,6 @@ VOID HookFunctionManager::KiDispatchExceptionHandler(IN PEXCEPTION_RECORD Except
 			return;
 		}
 	}
-	*/
 
 	return pKiDispatchExceptionCaller(ExceptionRecord, ExceptionFrame, TrapFrame, PreviousMode, FirstChance);
 }

@@ -97,7 +97,6 @@
     <ClInclude Include="UnpublicAPI.h" />
     <ClInclude Include="VirtualMemoryHelper.h" />
     <ClInclude Include="Vmcb.h" />
-    <ClInclude Include="DebugEvent.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Basic.cpp" />
